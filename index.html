@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ur">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Maktab Darul Huda</title>
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+<body>
+
+<header class="header">
+  <div class="logo-circle">🕌</div>
+  <h1>مکتب دارالہدیٰ ناگوٹھانہ</h1>
+  <p>Nagothane, Maharashtra</p>
+  <div class="batch-row">
+    <span>Pehli: 7-8</span>
+    <span>Doosri: 2-3</span>
+    <span>Teesri: Maghrib-Isha</span>
+  </div>
+  <button id="installBtn" style="display:none">📲 Install App</button>
+</header>
+
+<nav class="nav">
+  <button onclick="loadDashboard()">🏠<br>Dashboard</button>
+  <button onclick="loadTalaba()">👦<br>Talaba</button>
+  <button onclick="loadHaazri()">✅<br>Haazri</button>
+  <button onclick="loadFees()">💰<br>Fees</button>
+  <button onclick="loadReport()">📊<br>Report</button>
+</nav>
+
+<main id="app"><div class="loading">Loading...</div></main>
+<div id="toast" class="toast"></div>
+
+<script src="script.js"></script>
+</body>
+</html>
