@@ -210,7 +210,7 @@ async function loadMonthlyReport(studentId, name) {
   months.forEach((month, i) => {
     let monthAtt = att ? att.filter(a => {
       let d = new Date(a.date);
-      return d.getMonth() === i && d.getFullYear() === year;
+      return d.getMonth() === i && d.getFullYear() === year && d.getDay() !== 0; // Sunday exclude
     }) : [];
     let present = monthAtt.filter(a => a.status === 'present').length;
     let total = monthAtt.length;
@@ -249,6 +249,19 @@ async function shareMonthlyReport(studentId, name) {
 // ===== HAAZRI =====
 async function loadHaazri() {
   document.getElementById("app").innerHTML = '<div class="loading">⏳ Loading...</div>';
+
+  let todayDay = new Date().getDay();
+  if (todayDay === 0) {
+    document.getElementById("app").innerHTML = `
+      <div class="date-banner">📅 ${new Date().toISOString().slice(0,10)}</div>
+      <div class="card" style="text-align:center;padding:40px 20px;">
+        <div style="font-size:50px;">🕌</div>
+        <h2 style="color:#1a3d2b;margin:10px 0;">Aaj Chutti Hai</h2>
+        <p style="color:#888;">Sunday ko Maktab band rehta hai.</p>
+      </div>`;
+    return;
+  }
+
   let { data: students } = await db.from('students').select('*').order('batch').order('name');
   let today = new Date().toISOString().slice(0, 10);
   let { data: todayAtt } = await db.from('attendance').select('*').eq('date', today);
@@ -354,7 +367,10 @@ async function loadReport() {
     return;
   }
   students.forEach(s => {
-    let studentAtt = att ? att.filter(a => a.student_id === s.id) : [];
+    let studentAtt = att ? att.filter(a => {
+      let d = new Date(a.date);
+      return a.student_id === s.id && d.getDay() !== 0; // Sunday exclude
+    }) : [];
     let present = studentAtt.filter(a => a.status === 'present').length;
     let total = studentAtt.length;
     let percent = total > 0 ? Math.round((present/total)*100) : 0;
