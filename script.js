@@ -21,7 +21,37 @@ async function loadDashboard() {
   let total = students ? students.length : 0;
   let present = att ? att.filter(a => a.status === 'present').length : 0;
   let absent = att ? att.filter(a => a.status === 'absent').length : 0;
-  let percent = total > 0 ? Math.round((present / total) * 100) : 0;
+  let marked = present + absent;
+  let percent = marked > 0 ? Math.round((present / marked) * 100) : 0;
+
+  // Batch wise breakdown
+  let batches = students ? [...new Set(students.map(s => s.batch).filter(Boolean))] : [];
+  let batchHtml = '';
+  batches.forEach(batch => {
+    let batchStudents = students.filter(s => s.batch === batch);
+    let batchIds = batchStudents.map(s => s.id);
+    let batchAtt = att ? att.filter(a => batchIds.includes(a.student_id)) : [];
+    let bPresent = batchAtt.filter(a => a.status === 'present').length;
+    let bAbsent = batchAtt.filter(a => a.status === 'absent').length;
+    let bTotal = batchStudents.length;
+    let bMarked = bPresent + bAbsent;
+    let bPercent = bMarked > 0 ? Math.round((bPresent / bMarked) * 100) : 0;
+    let color = bMarked === 0 ? '#ccc' : bPercent >= 75 ? '#2ecc71' : bPercent >= 50 ? '#f39c12' : '#e74c3c';
+    batchHtml += `
+      <div class="card batch-stat-card">
+        <div class="batch-stat-title">${batch}</div>
+        <div class="batch-stat-row">
+          <span class="batch-total">👦 Kul: ${bTotal}</span>
+          <span class="batch-present">✅ Haazir: ${bPresent}</span>
+          <span class="batch-absent">❌ Ghaib: ${bAbsent}</span>
+        </div>
+        <div class="progress-bar" style="margin-top:8px;">
+          <div class="progress-fill" style="width:${bPercent}%;background:${color};min-width:${bPercent>0?'30px':'0'}">${bPercent > 0 ? bPercent+'%' : ''}</div>
+        </div>
+        <small style="color:#888;">${bMarked === 0 ? 'Aaj haazri nahi li gayi' : bPercent+'% haazri aaj'}</small>
+      </div>`;
+  });
+
   document.getElementById("app").innerHTML = `
     <div class="grid">
       <div class="card stat-card"><div class="stat-icon">👦</div><div class="stat-num">${total}</div><div class="stat-label">Kul Talaba</div></div>
@@ -29,8 +59,9 @@ async function loadDashboard() {
       <div class="card stat-card red-card"><div class="stat-icon">❌</div><div class="stat-num">${absent}</div><div class="stat-label">Aaj Ghaib</div></div>
       <div class="card stat-card blue-card"><div class="stat-icon">📊</div><div class="stat-num">${percent}%</div><div class="stat-label">Haazri %</div></div>
     </div>
+    <div class="date-banner">📅 ${today} - Batch Report</div>
+    ${batchHtml}
     <div class="card" style="text-align:center; margin:10px;">
-      <p style="color:#666; font-size:13px;">📅 ${today}</p>
       <p style="color:#1a3d2b; font-weight:bold; font-size:18px;">بسم الله الرحمن الرحيم</p>
       <p style="color:#555; font-size:13px;">Maktab Darul Huda Nagothane</p>
     </div>`;
@@ -92,6 +123,11 @@ async function addStudent() {
   let batch = document.getElementById("sBatch").value;
   if (!name) { showToast("⚠ Naam zaruri hai!"); return; }
   if (!batch) { showToast("⚠ Batch select karo!"); return; }
+  let { data: allStudents } = await db.from('students').select('name');
+  if (allStudents) {
+    let duplicate = allStudents.find(s => s.name.trim().toLowerCase() === name.toLowerCase());
+    if (duplicate) { showToast("⚠ Yeh naam pehle se mojood hai!"); return; }
+  }
   let { error } = await db.from('students').insert([{ name, father_name, phone, batch }]);
   if (error) { showToast("Error: " + error.message); return; }
   showToast("✅ Talib add ho gaya!");

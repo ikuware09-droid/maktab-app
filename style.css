@@ -329,6 +329,31 @@ body {
 
 .toast.show { opacity: 1; }
 
+/* BATCH STAT CARD */
+.batch-stat-card {
+  border-top: 3px solid #2d6a4f;
+  margin: 6px 10px;
+}
+
+.batch-stat-title {
+  font-weight: bold;
+  color: #1a3d2b;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.batch-stat-row {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 5px;
+}
+
+.batch-total { color: #555; font-size: 13px; }
+.batch-present { color: #2ecc71; font-size: 13px; font-weight: bold; }
+.batch-absent { color: #e74c3c; font-size: 13px; font-weight: bold; }
+
 /* PROFILE */
 .profile-avatar {
   background: linear-gradient(135deg, #1a3d2b, #2d6a4f);
