@@ -1,8 +1,62 @@
+// ===== HOME GRID =====
+function loadHome() {
+  document.getElementById("app").innerHTML = chuttiBanner() + `
+    <div class="home-grid">
+      <div class="tile tile-green" onclick="loadDashboard()">
+        <div class="tile-icon">📊</div>
+        <div class="tile-label">ڈیش بورڈ</div>
+      </div>
+      <div class="tile tile-blue" onclick="loadTalaba()">
+        <div class="tile-icon">👦</div>
+        <div class="tile-label">طلبہ</div>
+      </div>
+      <div class="tile tile-orange" onclick="loadHaazri()">
+        <div class="tile-icon">✅</div>
+        <div class="tile-label">حاضری</div>
+      </div>
+      <div class="tile tile-gold" onclick="loadFees()">
+        <div class="tile-icon">💰</div>
+        <div class="tile-label">فیس</div>
+      </div>
+      <div class="tile tile-purple" onclick="loadReport()">
+        <div class="tile-icon">📋</div>
+        <div class="tile-label">نتائج</div>
+      </div>
+      <div class="tile tile-teal" onclick="loadTalaba()">
+        <div class="tile-icon">📚</div>
+        <div class="tile-label">ریکارڈ</div>
+      </div>
+    </div>
+  `;
+}
+
 // ===== SUPABASE CONFIG =====
 const SUPABASE_URL = 'https://ajpeeftziwwmnlzekxbr.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFqcGVlZnR6aXd3bW5semVreGJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwMDQzMjMsImV4cCI6MjA5MjU4MDMyM30.T5QoLwrqSUViCg73nT1lDjpmKisV50dFcQd9Yi5cvuw';
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+
+// ===== CHUTTI CHECK =====
+function isChutti() {
+  let today = new Date();
+  let month = today.getMonth() + 1; // 1-12
+  let day = today.getDate();
+  // 1 May to 15 June
+  if (month === 5) return true; // Pura May
+  if (month === 6 && day <= 15) return true; // June 1-15
+  return false;
+}
+
+function chuttiBanner() {
+  if (!isChutti()) return '';
+  return `
+    <div style="background:linear-gradient(135deg,#e9c46a,#f4d03f);color:#1a3d2b;padding:14px 15px;margin:10px 15px;border-radius:14px;text-align:center;box-shadow:0 3px 10px rgba(233,196,106,0.4);">
+      <div style="font-size:28px;">🌙</div>
+      <div style="font-weight:bold;font-size:15px;margin:5px 0;">مکتب میں چھٹیاں جاری ہیں</div>
+      <div style="font-size:12px;color:#555;">1 مئی تا 15 جون 2026</div>
+    </div>`;
+}
 
 // ===== TOAST =====
 function showToast(msg) {
@@ -21,8 +75,7 @@ async function loadDashboard() {
   let total = students ? students.length : 0;
   let present = att ? att.filter(a => a.status === 'present').length : 0;
   let absent = att ? att.filter(a => a.status === 'absent').length : 0;
-  let marked = present + absent;
-  let percent = marked > 0 ? Math.round((present / marked) * 100) : 0;
+  let percent = total > 0 ? Math.round((present / total) * 100) : 0;
 
   // Batch wise breakdown
   let batches = students ? [...new Set(students.map(s => s.batch).filter(Boolean))] : [];
@@ -32,11 +85,10 @@ async function loadDashboard() {
     let batchIds = batchStudents.map(s => s.id);
     let batchAtt = att ? att.filter(a => batchIds.includes(a.student_id)) : [];
     let bPresent = batchAtt.filter(a => a.status === 'present').length;
-    let bAbsent = batchAtt.filter(a => a.status === 'absent').length;
     let bTotal = batchStudents.length;
-    let bMarked = bPresent + bAbsent;
-    let bPercent = bMarked > 0 ? Math.round((bPresent / bMarked) * 100) : 0;
-    let color = bMarked === 0 ? '#ccc' : bPercent >= 75 ? '#2ecc71' : bPercent >= 50 ? '#f39c12' : '#e74c3c';
+    let bAbsent = bTotal - bPresent;
+    let bPercent = bTotal > 0 ? Math.round((bPresent / bTotal) * 100) : 0;
+    let color = bPercent >= 75 ? '#2ecc71' : bPercent >= 50 ? '#f39c12' : '#e74c3c';
     batchHtml += `
       <div class="card batch-stat-card">
         <div class="batch-stat-title">${batch}</div>
@@ -59,6 +111,7 @@ async function loadDashboard() {
       <div class="card stat-card red-card"><div class="stat-icon">❌</div><div class="stat-num">${absent}</div><div class="stat-label">Aaj Ghaib</div></div>
       <div class="card stat-card blue-card"><div class="stat-icon">📊</div><div class="stat-num">${percent}%</div><div class="stat-label">Haazri %</div></div>
     </div>
+    ${chuttiBanner()}
     <div class="date-banner">📅 ${today} - Batch Report</div>
     ${batchHtml}
     <div class="card" style="text-align:center; margin:10px;">
@@ -287,6 +340,16 @@ async function loadHaazri() {
   document.getElementById("app").innerHTML = '<div class="loading">⏳ Loading...</div>';
 
   let todayDay = new Date().getDay();
+  if (isChutti()) {
+    document.getElementById("app").innerHTML = `
+      <div class="date-banner">📅 ${new Date().toISOString().slice(0,10)}</div>
+      <div class="card" style="text-align:center;padding:40px 20px;">
+        <div style="font-size:50px;">🌙</div>
+        <h2 style="color:#1a3d2b;margin:10px 0;">مکتب میں چھٹیاں ہیں</h2>
+        <p style="color:#888;">1 مئی تا 15 جون 2026</p>
+      </div>`;
+    return;
+  }
   if (todayDay === 0) {
     document.getElementById("app").innerHTML = `
       <div class="date-banner">📅 ${new Date().toISOString().slice(0,10)}</div>
@@ -434,4 +497,4 @@ window.addEventListener('beforeinstallprompt', (e) => {
 document.getElementById("installBtn").onclick = async () => { if (deferredPrompt) deferredPrompt.prompt(); };
 if ('serviceWorker' in navigator) { navigator.serviceWorker.register('/sw.js').catch(() => {}); }
 
-loadDashboard();
+loadHome();
