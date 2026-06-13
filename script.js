@@ -44,7 +44,7 @@ function isChutti() {
   let day = today.getDate();
   // 1 May to 15 June
   if (month === 5) return true; // Pura May
-  if (month === 6 && day <= 15) return true; // June 1-15
+  if (month === 6 && day <= 14) return true; // June 1-14
   return false;
 }
 
@@ -54,7 +54,7 @@ function chuttiBanner() {
     <div style="background:linear-gradient(135deg,#e9c46a,#f4d03f);color:#1a3d2b;padding:14px 15px;margin:10px 15px;border-radius:14px;text-align:center;box-shadow:0 3px 10px rgba(233,196,106,0.4);">
       <div style="font-size:28px;">🌙</div>
       <div style="font-weight:bold;font-size:15px;margin:5px 0;">مکتب میں چھٹیاں جاری ہیں</div>
-      <div style="font-size:12px;color:#555;">1 مئی تا 15 جون 2026</div>
+      <div style="font-size:12px;color:#555;">1 مئی تا 14 جون 2026</div>
     </div>`;
 }
 
@@ -346,7 +346,7 @@ async function loadHaazri() {
       <div class="card" style="text-align:center;padding:40px 20px;">
         <div style="font-size:50px;">🌙</div>
         <h2 style="color:#1a3d2b;margin:10px 0;">مکتب میں چھٹیاں ہیں</h2>
-        <p style="color:#888;">1 مئی تا 15 جون 2026</p>
+        <p style="color:#888;">1 مئی تا 14 جون 2026</p>
       </div>`;
     return;
   }
