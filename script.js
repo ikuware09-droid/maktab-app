@@ -100,7 +100,7 @@ async function loadDashboard() {
         <div class="progress-bar" style="margin-top:8px;">
           <div class="progress-fill" style="width:${bPercent}%;background:${color};min-width:${bPercent>0?'30px':'0'}">${bPercent > 0 ? bPercent+'%' : ''}</div>
         </div>
-        <small style="color:#888;">${bMarked === 0 ? 'Aaj haazri nahi li gayi' : bPercent+'% haazri aaj'}</small>
+        <small style="color:#888;">${bPercent}% haazri aaj</small>
       </div>`;
   });
 
@@ -365,13 +365,11 @@ async function shareMonthlyReport(studentId, name) {
 }
 
 // ===== HAAZRI =====
-async function loadHaazri() {
-  document.getElementById("app").innerHTML = '<div class="loading">⏳ Loading...</div>';
-
-  let todayDay = new Date().getDay();
+function loadHaazri() {
+  let today = new Date().toISOString().slice(0, 10);
   if (isChutti()) {
     document.getElementById("app").innerHTML = `
-      <div class="date-banner">📅 ${new Date().toISOString().slice(0,10)}</div>
+      <div class="date-banner">📅 ${today}</div>
       <div class="card" style="text-align:center;padding:40px 20px;">
         <div style="font-size:50px;">🌙</div>
         <h2 style="color:#1a3d2b;margin:10px 0;">مکتب میں چھٹیاں ہیں</h2>
@@ -379,9 +377,9 @@ async function loadHaazri() {
       </div>`;
     return;
   }
-  if (todayDay === 0) {
+  if (new Date().getDay() === 0) {
     document.getElementById("app").innerHTML = `
-      <div class="date-banner">📅 ${new Date().toISOString().slice(0,10)}</div>
+      <div class="date-banner">📅 ${today}</div>
       <div class="card" style="text-align:center;padding:40px 20px;">
         <div style="font-size:50px;">🕌</div>
         <h2 style="color:#1a3d2b;margin:10px 0;">Aaj Chutti Hai</h2>
@@ -389,32 +387,51 @@ async function loadHaazri() {
       </div>`;
     return;
   }
+  document.getElementById("app").innerHTML = `
+    <div class="date-banner">📅 ${today} - Batch Select Karo</div>
+    <div style="padding:10px;">
+      <div class="tile tile-orange" style="margin:8px 0;" onclick="loadBatchHaazri('Pehli (7-8 AM)')">
+        <div class="tile-icon">🌅</div>
+        <div class="tile-label" style="font-size:14px;">پہلی بیچ (7-8 AM)</div>
+      </div>
+      <div class="tile tile-blue" style="margin:8px 0;" onclick="loadBatchHaazri('Doosri (2-3 PM)')">
+        <div class="tile-icon">☀️</div>
+        <div class="tile-label" style="font-size:14px;">دوسری بیچ (2-3 PM)</div>
+      </div>
+      <div class="tile tile-purple" style="margin:8px 0;" onclick="loadBatchHaazri('Teesri (Maghrib-Isha)')">
+        <div class="tile-icon">🌙</div>
+        <div class="tile-label" style="font-size:14px;">تیسری بیچ (مغرب-عشاء)</div>
+      </div>
+    </div>`;
+}
 
-  let { data: students } = await db.from('students').select('*').order('batch').order('name');
+async function loadBatchHaazri(batch) {
+  document.getElementById("app").innerHTML = '<div class="loading">⏳ Loading...</div>';
+  let { data: students } = await db.from('students').select('*').eq('batch', batch).order('name');
   let today = new Date().toISOString().slice(0, 10);
   let { data: todayAtt } = await db.from('attendance').select('*').eq('date', today);
   let attMap = {};
   if (todayAtt) todayAtt.forEach(a => attMap[a.student_id] = a.status);
-  let html = `<div class="date-banner">📅 ${today}</div>`;
+  let html = `
+    <div style="padding:10px;">
+      <button class="btn-cancel" onclick="loadHaazri()" style="width:auto;padding:8px 16px;">← Wapas</button>
+    </div>
+    <div class="date-banner">📅 ${today} - ${batch}</div>`;
   if (!students || students.length === 0) {
-    html += '<div class="card" style="text-align:center;color:#666;">Koi talib nahi.</div>';
+    html += '<div class="card" style="text-align:center;color:#666;padding:30px;">Is batch mein koi talib nahi.</div>';
     document.getElementById("app").innerHTML = html;
     return;
   }
-  let batches = [...new Set(students.map(s => s.batch).filter(Boolean))];
-  batches.forEach(batch => {
-    html += `<div class="batch-header">${batch}</div>`;
-    students.filter(s => s.batch === batch).forEach(s => {
-      let status = attMap[s.id] || '';
-      html += `
-        <div class="card haazri-card">
-          <div class="student-name">${s.name}</div>
-          <div class="att-buttons">
-            <button class="btn-present ${status==='present'?'active-green':''}" onclick="mark(${s.id},'present',this)">✔ Haazir</button>
-            <button class="btn-absent ${status==='absent'?'active-red':''}" onclick="mark(${s.id},'absent',this)">✖ Ghaib</button>
-          </div>
-        </div>`;
-    });
+  students.forEach(s => {
+    let status = attMap[s.id] || '';
+    html += `
+      <div class="card haazri-card">
+        <div class="student-name">${s.name}</div>
+        <div class="att-buttons">
+          <button class="btn-present ${status==='present'?'active-green':''}" onclick="mark(${s.id},'present',this)">✔ Haazir</button>
+          <button class="btn-absent ${status==='absent'?'active-red':''}" onclick="mark(${s.id},'absent',this)">✖ Ghaib</button>
+        </div>
+      </div>`;
   });
   document.getElementById("app").innerHTML = html;
 }
