@@ -275,7 +275,36 @@ async function loadProfile(studentId) {
       <button class="btn-share" onclick="shareProfile('${encodeURIComponent(shareText)}')">📤 WhatsApp</button>
       <button class="btn-print" onclick="window.print()">🖨 Print</button>
       <button class="btn-monthly" onclick="loadMonthlyReport(${studentId},'${s.name}')">📊 Monthly</button>
+    </div>
+    <div style="padding:0 10px 15px;">
+      <button class="btn-batch-change" onclick="showBatchChange(${studentId},'${s.batch}')">🔄 Batch Badlo</button>
+    </div>
+    <div id="batchChangeArea"></div>`;
+}
+
+function showBatchChange(studentId, currentBatch) {
+  document.getElementById('batchChangeArea').innerHTML = `
+    <div class="card" style="margin:0 10px 15px;">
+      <h4 style="color:#1a3d2b;margin-bottom:10px;">Batch Change Karo</h4>
+      <p style="color:#888;font-size:12px;margin-bottom:8px;">Abhi: ${currentBatch}</p>
+      <select id="newBatch" class="input-field">
+        <option value="">Naya batch select karo</option>
+        <option value="Pehli (7-8 AM)">Pehli (7-8 AM)</option>
+        <option value="Doosri (2-3 PM)">Doosri (2-3 PM)</option>
+        <option value="Teesri (Maghrib-Isha)">Teesri (Maghrib-Isha)</option>
+      </select>
+      <button class="btn-primary" style="margin-top:8px;" onclick="saveBatchChange(${studentId})">✅ Save Karo</button>
+      <button class="btn-cancel" onclick="document.getElementById('batchChangeArea').innerHTML=''">Cancel</button>
     </div>`;
+}
+
+async function saveBatchChange(studentId) {
+  let newBatch = document.getElementById('newBatch').value;
+  if (!newBatch) { showToast("⚠ Batch select karo!"); return; }
+  let { error } = await db.from('students').update({ batch: newBatch }).eq('id', studentId);
+  if (error) { showToast("Error: " + error.message); return; }
+  showToast("✅ Batch change ho gaya!");
+  loadProfile(studentId);
 }
 
 function shareProfile(encodedText) {
