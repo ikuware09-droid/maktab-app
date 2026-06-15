@@ -128,19 +128,29 @@ async function loadTalaba() {
   if (students && students.length > 0) {
     students.forEach(s => {
       html += `
-        <div class="card student-card" onclick="loadProfile(${s.id})" style="cursor:pointer;">
-          <div class="student-info">
-            <div class="student-avatar">${s.name.charAt(0).toUpperCase()}</div>
-            <div>
-              <b>${s.name}</b><br>
-              <small>Walid: ${s.father_name || '-'}</small><br>
-              <span class="batch-badge">${s.batch || '-'}</span>
-              ${s.phone ? `<br><small>📞 ${s.phone}</small>` : ''}
+        <div class="card" style="margin:8px 10px;padding:14px;">
+          <div class="student-card" onclick="loadProfile(${s.id})" style="cursor:pointer;">
+            <div class="student-info">
+              <div class="student-avatar">${s.name.charAt(0).toUpperCase()}</div>
+              <div>
+                <b>${s.name}</b><br>
+                <small>Walid: ${s.father_name || '-'}</small><br>
+                <span class="batch-badge">${s.batch || '-'}</span>
+                ${s.phone ? `<br><small>📞 ${s.phone}</small>` : ''}
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:5px;align-items:center;">
+              <button class="btn-delete" onclick="event.stopPropagation();deleteStudent(${s.id},'${s.name}')">🗑</button>
+              <span style="font-size:11px;color:#2d6a4f;">Profile ›</span>
             </div>
           </div>
-          <div style="display:flex;flex-direction:column;gap:5px;align-items:center;">
-            <button class="btn-delete" onclick="event.stopPropagation();deleteStudent(${s.id},'${s.name}')">🗑</button>
-            <span style="font-size:11px;color:#2d6a4f;">Profile ›</span>
+          <div style="margin-top:10px;display:flex;gap:8px;align-items:center;" onclick="event.stopPropagation()">
+            <select onchange="quickBatchChange(${s.id}, this.value, this)" class="input-field" style="margin:0;flex:1;font-size:12px;padding:7px 10px;">
+              <option value="">🔄 Batch Badlo</option>
+              <option value="Pehli (7-8 AM)" ${s.batch==='Pehli (7-8 AM)'?'selected':''}>🌅 Pehli (7-8 AM)</option>
+              <option value="Doosri (2-3 PM)" ${s.batch==='Doosri (2-3 PM)'?'selected':''}>☀️ Doosri (2-3 PM)</option>
+              <option value="Teesri (Maghrib-Isha)" ${s.batch==='Teesri (Maghrib-Isha)'?'selected':''}>🌙 Teesri (Maghrib-Isha)</option>
+            </select>
           </div>
         </div>`;
     });
@@ -185,6 +195,17 @@ async function addStudent() {
   if (error) { showToast("Error: " + error.message); return; }
   showToast("✅ Talib add ho gaya!");
   loadTalaba();
+}
+
+async function quickBatchChange(studentId, newBatch, select) {
+  if (!newBatch) return;
+  let { error } = await db.from('students').update({ batch: newBatch }).eq('id', studentId);
+  if (error) { showToast("Error: " + error.message); return; }
+  showToast("✅ Batch change ho gaya!");
+  // Update badge in same card
+  let card = select.closest('.card');
+  let badge = card.querySelector('.batch-badge');
+  if (badge) badge.innerText = newBatch;
 }
 
 async function deleteStudent(id, name) {
