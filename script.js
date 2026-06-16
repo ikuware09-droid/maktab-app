@@ -477,12 +477,20 @@ async function loadBatchHaazri(batch) {
   students.forEach(s => {
     let status = attMap[s.id] || '';
     html += `
-      <div class="card haazri-card">
-        <div class="student-name">${s.name}</div>
-        <div class="att-buttons">
-          <button class="btn-present ${status==='present'?'active-green':''}" onclick="mark(${s.id},'present',this)">✔ Haazir</button>
-          <button class="btn-absent ${status==='absent'?'active-red':''}" onclick="mark(${s.id},'absent',this)">✖ Ghaib</button>
+      <div class="card" style="margin:5px 10px;padding:12px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+          <div class="student-name">${s.name}</div>
+          <div class="att-buttons">
+            <button class="btn-present ${status==='present'?'active-green':''}" onclick="mark(${s.id},'present',this)">✔ Haazir</button>
+            <button class="btn-absent ${status==='absent'?'active-red':''}" onclick="mark(${s.id},'absent',this)">✖ Ghaib</button>
+          </div>
         </div>
+        <select onchange="quickBatchChange(${s.id}, this.value, this)" class="input-field" style="margin-top:7px;font-size:11px;padding:5px 8px;color:#888;">
+          <option value="">🔄 Batch Badlo</option>
+          <option value="Pehli (7-8 AM)" ${s.batch==='Pehli (7-8 AM)'?'selected':''}>🌅 Pehli (7-8 AM)</option>
+          <option value="Doosri (2-3 PM)" ${s.batch==='Doosri (2-3 PM)'?'selected':''}>☀️ Doosri (2-3 PM)</option>
+          <option value="Teesri (Maghrib-Isha)" ${s.batch==='Teesri (Maghrib-Isha)'?'selected':''}>🌙 Teesri (Maghrib-Isha)</option>
+        </select>
       </div>`;
   });
   document.getElementById("app").innerHTML = html;
