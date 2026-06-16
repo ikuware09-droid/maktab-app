@@ -22,9 +22,9 @@ function loadHome() {
         <div class="tile-icon">📋</div>
         <div class="tile-label">نتائج</div>
       </div>
-      <div class="tile tile-teal" onclick="loadTalaba()">
-        <div class="tile-icon">📚</div>
-        <div class="tile-label">ریکارڈ</div>
+      <div class="tile tile-teal" onclick="loadDateHaazri()">
+        <div class="tile-icon">📅</div>
+        <div class="tile-label">پرانی حاضری</div>
       </div>
     </div>
   `;
@@ -124,11 +124,32 @@ async function loadDashboard() {
 async function loadTalaba() {
   document.getElementById("app").innerHTML = '<div class="loading">⏳ Loading...</div>';
   let { data: students } = await db.from('students').select('*').order('name');
-  let html = `<div style="padding:10px;"><button class="btn-primary" onclick="showAddStudentForm()">+ Talib Add Karo</button></div><div id="formArea"></div>`;
+  
+  // Batch counts
+  let batches = ['Pehli (7-8 AM)', 'Doosri (2-3 PM)', 'Teesri (Maghrib-Isha)'];
+  let batchCounts = '';
+  batches.forEach(b => {
+    let count = students ? students.filter(s => s.batch === b).length : 0;
+    let icon = b.includes('Pehli') ? '🌅' : b.includes('Doosri') ? '☀️' : '🌙';
+    batchCounts += `<div style="background:#e9f5ee;border-radius:10px;padding:8px 12px;text-align:center;flex:1;">
+      <div style="font-size:18px;">${icon}</div>
+      <div style="font-weight:bold;color:#1a3d2b;font-size:16px;">${count}</div>
+      <div style="font-size:10px;color:#666;">${b.split(' ')[0]}</div>
+    </div>`;
+  });
+
+  let html = `
+    <div style="padding:10px;">
+      <div style="display:flex;gap:8px;margin-bottom:10px;">${batchCounts}</div>
+      <input type="text" id="searchBar" class="input-field" placeholder="🔍 Naam search karo..." oninput="filterStudents()" style="margin-bottom:8px;">
+      <button class="btn-primary" onclick="showAddStudentForm()">+ Talib Add Karo</button>
+    </div>
+    <div id="formArea"></div>
+    <div id="studentsList">`;
   if (students && students.length > 0) {
     students.forEach(s => {
       html += `
-        <div class="card" style="margin:8px 10px;padding:14px;">
+        <div class="card student-item" data-name="${s.name.toLowerCase()}" style="margin:8px 10px;padding:14px;">
           <div class="student-card" onclick="loadProfile(${s.id})" style="cursor:pointer;">
             <div class="student-info">
               <div class="student-avatar">${s.name.charAt(0).toUpperCase()}</div>
@@ -157,7 +178,17 @@ async function loadTalaba() {
   } else {
     html += '<div class="card" style="text-align:center;color:#666;padding:30px;">Koi talib nahi.<br>Upar + button se add karo.</div>';
   }
+  html += '</div>';
   document.getElementById("app").innerHTML = html;
+}
+
+function filterStudents() {
+  let query = document.getElementById('searchBar').value.toLowerCase();
+  let items = document.querySelectorAll('.student-item');
+  items.forEach(item => {
+    let name = item.getAttribute('data-name') || '';
+    item.style.display = name.includes(query) ? 'block' : 'none';
+  });
 }
 
 function showAddStudentForm() {
@@ -552,6 +583,61 @@ async function loadReport() {
       </div>`;
   });
   document.getElementById("app").innerHTML = html;
+}
+
+// ===== DATE WISE HAAZRI =====
+async function loadDateHaazri() {
+  let today = new Date().toISOString().slice(0, 10);
+  document.getElementById("app").innerHTML = `
+    <div style="padding:10px;">
+      <div class="date-banner" style="margin:0 0 10px;">📅 Kisi Bhi Din Ki Haazri Dekho</div>
+      <input type="date" id="dateInput" class="input-field" value="${today}" max="${today}">
+      <button class="btn-primary" style="margin-top:8px;" onclick="showDateHaazri()">🔍 Haazri Dekho</button>
+    </div>
+    <div id="dateHaazriResult"></div>`;
+}
+
+async function showDateHaazri() {
+  let date = document.getElementById('dateInput').value;
+  if (!date) { showToast("⚠ Date select karo!"); return; }
+  
+  document.getElementById("dateHaazriResult").innerHTML = '<div class="loading">⏳ Loading...</div>';
+  
+  let { data: students } = await db.from('students').select('*').order('batch').order('name');
+  let { data: att } = await db.from('attendance').select('*').eq('date', date);
+  
+  let attMap = {};
+  if (att) att.forEach(a => attMap[a.student_id] = a.status);
+  
+  let total = students ? students.length : 0;
+  let present = att ? att.filter(a => a.status === 'present').length : 0;
+  let absent = total - present;
+  
+  let html = `
+    <div class="card" style="margin:8px 10px;background:#1a3d2b;color:white;text-align:center;">
+      <b style="font-size:15px;">📅 ${date}</b><br>
+      <span style="color:#2ecc71;">✅ Haazir: ${present}</span> &nbsp;
+      <span style="color:#e74c3c;">❌ Ghaib: ${absent}</span> &nbsp;
+      <span style="color:#e9c46a;">👦 Kul: ${total}</span>
+    </div>`;
+  
+  let batches = [...new Set(students.map(s => s.batch).filter(Boolean))];
+  batches.forEach(batch => {
+    html += `<div class="batch-header">${batch}</div>`;
+    students.filter(s => s.batch === batch).forEach(s => {
+      let status = attMap[s.id];
+      let icon = status === 'present' ? '✅' : status === 'absent' ? '❌' : '➖';
+      let color = status === 'present' ? '#e9f7ef' : status === 'absent' ? '#fdedec' : '#f9f9f9';
+      let text = status === 'present' ? 'Haazir' : status === 'absent' ? 'Ghaib' : 'Recorded nahi';
+      html += `
+        <div class="card" style="margin:5px 10px;padding:12px;background:${color};display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-weight:500;">${s.name}</span>
+          <span style="font-weight:bold;">${icon} ${text}</span>
+        </div>`;
+    });
+  });
+  
+  document.getElementById("dateHaazriResult").innerHTML = html;
 }
 
 // ===== PWA =====
