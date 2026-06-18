@@ -178,6 +178,7 @@ async function loadTalaba() {
               <option value="Doosri (2-3 PM)" ${s.batch==='Doosri (2-3 PM)'?'selected':''}>☀️ Doosri (2-3 PM)</option>
               <option value="Teesri (Maghrib-Isha)" ${s.batch==='Teesri (Maghrib-Isha)'?'selected':''}>🌙 Teesri (Maghrib-Isha)</option>
             </select>
+            <button id="gbtn-${s.id}" onclick="event.stopPropagation();toggleGender(${s.id},this)" style="padding:7px 12px;border-radius:8px;border:2px solid ${s.gender==='Ladki'?'#c2185b':'#1565c0'};background:${s.gender==='Ladki'?'#fce4ec':'#e3f2fd'};font-size:16px;cursor:pointer;white-space:nowrap;">${s.gender==='Ladki'?'👧 Ladki':'👦 Ladka'}</button>
           </div>
         </div>`;
     });
@@ -188,7 +189,24 @@ async function loadTalaba() {
   document.getElementById("app").innerHTML = html;
 }
 
-function filterStudents() {
+async function toggleGender(id, btn) {
+  let isLadki = btn.innerText.includes('Ladki');
+  let newGender = isLadki ? 'Ladka' : 'Ladki';
+  let { error } = await db.from('students').update({ gender: newGender }).eq('id', id);
+  if (error) { showToast("Error: " + error.message); return; }
+  if (newGender === 'Ladki') {
+    btn.innerText = '👧 Ladki';
+    btn.style.border = '2px solid #c2185b';
+    btn.style.background = '#fce4ec';
+  } else {
+    btn.innerText = '👦 Ladka';
+    btn.style.border = '2px solid #1565c0';
+    btn.style.background = '#e3f2fd';
+  }
+  showToast("✅ " + newGender + " set ho gaya!");
+}
+
+
   let query = document.getElementById('searchBar').value.toLowerCase();
   let items = document.querySelectorAll('.student-item');
   items.forEach(item => {
