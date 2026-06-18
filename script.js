@@ -26,6 +26,10 @@ function loadHome() {
         <div class="tile-icon">📅</div>
         <div class="tile-label">پرانی حاضری</div>
       </div>
+      <div class="tile tile-pink" onclick="loadTopStudents()" style="background:linear-gradient(135deg,#e91e8c,#f06292);">
+        <div class="tile-icon">🏆</div>
+        <div class="tile-label">ٹاپ طلبہ</div>
+      </div>
     </div>
   `;
 }
@@ -120,13 +124,65 @@ async function loadDashboard() {
     ${chuttiBanner()}
     <div class="date-banner">📅 ${today} - Batch Report</div>
     ${batchHtml}
+    <div class="date-banner" style="cursor:pointer;" onclick="loadTopStudents()">🏆 Sabse Zyada Haazir Talaba ›</div>
+    ${await buildTopStudentsHtml(students)}
     <div class="card" style="text-align:center; margin:10px;">
       <p style="color:#1a3d2b; font-weight:bold; font-size:18px;">بسم الله الرحمن الرحيم</p>
       <p style="color:#555; font-size:13px;">Maktab Darul Huda Nagothane</p>
     </div>`;
 }
 
-// ===== TALABA =====
+// ===== TOP STUDENTS =====
+async function buildTopStudentsHtml(students) {
+  if (!students || students.length === 0) return '';
+  let { data: att } = await db.from('attendance').select('*').eq('status', 'present');
+  if (!att) att = [];
+  let batches = ['Pehli (7-8 AM)', 'Doosri (2-3 PM)', 'Teesri (Maghrib-Isha)'];
+  let medals = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣'];
+  let html = '';
+  batches.forEach(batch => {
+    let bStudents = students.filter(s => s.batch === batch);
+    if (bStudents.length === 0) return;
+    let ranked = bStudents.map(s => {
+      let presentDays = att.filter(a => a.student_id === s.id).length;
+      return { ...s, presentDays };
+    }).sort((a, b) => b.presentDays - a.presentDays).slice(0, 5);
+    let batchIcon = batch.includes('Pehli') ? '🌅' : batch.includes('Doosri') ? '☀️' : '🌙';
+    html += `<div class="card" style="margin:8px 10px;padding:14px;">
+      <div style="font-weight:bold;color:#1a3d2b;font-size:14px;margin-bottom:10px;">${batchIcon} ${batch}</div>`;
+    ranked.forEach((s, i) => {
+      let genderIcon = s.gender === 'Ladki' ? '👧' : '👦';
+      html += `<div onclick="loadProfile(${s.id})" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f0f0f0;cursor:pointer;">
+        <span style="font-size:20px;">${medals[i]}</span>
+        <span style="font-size:18px;">${genderIcon}</span>
+        <div style="flex:1;">
+          <b style="font-size:14px;">${s.name}</b>
+          <div style="font-size:11px;color:#888;">Walid: ${s.father_name || '-'}</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-weight:bold;color:#2d6a4f;font-size:16px;">${s.presentDays}</div>
+          <div style="font-size:10px;color:#888;">din haazir</div>
+        </div>
+      </div>`;
+    });
+    html += '</div>';
+  });
+  return html;
+}
+
+async function loadTopStudents() {
+  document.getElementById("app").innerHTML = '<div class="loading">⏳ Loading...</div>';
+  let { data: students } = await db.from('students').select('*').order('name');
+  let html = `
+    <div style="padding:10px;">
+      <button class="btn-cancel" onclick="loadHome()" style="width:auto;padding:8px 16px;">← Wapas</button>
+    </div>
+    <div class="date-banner">🏆 Sabse Zyada Haazir Talaba</div>
+    ${await buildTopStudentsHtml(students)}`;
+  document.getElementById("app").innerHTML = html;
+}
+
+
 async function loadTalaba() {
   document.getElementById("app").innerHTML = '<div class="loading">⏳ Loading...</div>';
   let { data: students } = await db.from('students').select('*').order('name');
