@@ -228,6 +228,17 @@ async function addStudent() {
   loadTalaba();
 }
 
+async function deleteStudentFromHaazri(id, name) {
+  if (!confirm(name + " ko delete karna chahte ho?")) return;
+  await db.from('attendance').delete().eq('student_id', id);
+  await db.from('fees').delete().eq('student_id', id);
+  await db.from('students').delete().eq('id', id);
+  showToast("🗑 " + name + " delete ho gaya");
+  let card = document.getElementById('hcard-' + id);
+  if (card) card.remove();
+  updateHaazriCounter();
+}
+
 async function quickBatchChange(studentId, newBatch, select) {
   if (!newBatch) return;
   let { error } = await db.from('students').update({ batch: newBatch }).eq('id', studentId);
@@ -464,11 +475,19 @@ async function loadBatchHaazri(batch) {
   let { data: todayAtt } = await db.from('attendance').select('*').eq('date', today);
   let attMap = {};
   if (todayAtt) todayAtt.forEach(a => attMap[a.student_id] = a.status);
+  let presentCount = 0, absentCount = 0;
+  students.forEach(s => {
+    if (attMap[s.id] === 'present') presentCount++;
+    else if (attMap[s.id] === 'absent') absentCount++;
+  });
   let html = `
     <div style="padding:10px;">
       <button class="btn-cancel" onclick="loadHaazri()" style="width:auto;padding:8px 16px;">← Wapas</button>
     </div>
-    <div class="date-banner">📅 ${today} - ${batch}</div>`;
+    <div class="date-banner">📅 ${today} - ${batch}</div>
+    <div id="haazri-counter" style="position:sticky;top:0;z-index:10;background:#fff8e1;border:2px solid #ffc107;border-radius:10px;margin:8px 10px;padding:10px;text-align:center;font-weight:bold;font-size:14px;">
+      ✅ Haazir: ${presentCount} &nbsp;|&nbsp; ❌ Ghaib: ${absentCount} &nbsp;|&nbsp; 👥 Total: ${students.length}
+    </div>`;
   if (!students || students.length === 0) {
     html += '<div class="card" style="text-align:center;color:#666;padding:30px;">Is batch mein koi talib nahi.</div>';
     document.getElementById("app").innerHTML = html;
@@ -477,12 +496,15 @@ async function loadBatchHaazri(batch) {
   students.forEach(s => {
     let status = attMap[s.id] || '';
     html += `
-      <div class="card" style="margin:5px 10px;padding:12px;">
+      <div class="card" id="hcard-${s.id}" style="margin:5px 10px;padding:12px;">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
           <div class="student-name">${s.name}</div>
-          <div class="att-buttons">
-            <button class="btn-present ${status==='present'?'active-green':''}" onclick="mark(${s.id},'present',this)">✔ Haazir</button>
-            <button class="btn-absent ${status==='absent'?'active-red':''}" onclick="mark(${s.id},'absent',this)">✖ Ghaib</button>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <div class="att-buttons">
+              <button class="btn-present ${status==='present'?'active-green':''}" onclick="mark(${s.id},'present',this)">✔ Haazir</button>
+              <button class="btn-absent ${status==='absent'?'active-red':''}" onclick="mark(${s.id},'absent',this)">✖ Ghaib</button>
+            </div>
+            <button class="btn-delete" onclick="deleteStudentFromHaazri(${s.id},'${s.name}')" style="padding:6px 10px;font-size:14px;">🗑</button>
           </div>
         </div>
         <select onchange="quickBatchChange(${s.id}, this.value, this)" class="input-field" style="margin-top:7px;font-size:11px;padding:5px 8px;color:#888;">
@@ -504,10 +526,20 @@ async function mark(studentId, status, btn) {
   } else {
     await db.from('attendance').insert([{ student_id: studentId, date: today, status }]);
   }
-  let card = btn.closest('.haazri-card');
+  let card = btn.closest('.card');
   card.querySelectorAll('.btn-present,.btn-absent').forEach(b => b.classList.remove('active-green','active-red'));
   btn.classList.add(status === 'present' ? 'active-green' : 'active-red');
   showToast(status === 'present' ? "✅ Haazir" : "❌ Ghaib");
+  updateHaazriCounter();
+}
+
+function updateHaazriCounter() {
+  let counterEl = document.getElementById('haazri-counter');
+  if (!counterEl) return;
+  let presentCount = document.querySelectorAll('.btn-present.active-green').length;
+  let absentCount = document.querySelectorAll('.btn-absent.active-red').length;
+  let totalCount = document.querySelectorAll('[id^="hcard-"]').length;
+  counterEl.innerHTML = `✅ Haazir: ${presentCount} &nbsp;|&nbsp; ❌ Ghaib: ${absentCount} &nbsp;|&nbsp; 👥 Total: ${totalCount}`;
 }
 
 // ===== FEES =====
