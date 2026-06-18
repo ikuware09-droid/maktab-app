@@ -89,11 +89,17 @@ async function loadDashboard() {
     let bAbsent = bTotal - bPresent;
     let bPercent = bTotal > 0 ? Math.round((bPresent / bTotal) * 100) : 0;
     let color = bPercent >= 75 ? '#2ecc71' : bPercent >= 50 ? '#f39c12' : '#e74c3c';
+    let bLadke = batchStudents.filter(s => s.gender === 'Ladka' || !s.gender).length;
+    let bLadkiyan = batchStudents.filter(s => s.gender === 'Ladki').length;
     batchHtml += `
       <div class="card batch-stat-card">
         <div class="batch-stat-title">${batch}</div>
         <div class="batch-stat-row">
-          <span class="batch-total">👦 Kul: ${bTotal}</span>
+          <span class="batch-total">👥 Kul: ${bTotal}</span>
+          <span style="color:#1565c0;">👦 Ladke: ${bLadke}</span>
+          <span style="color:#c2185b;">👧 Ladkiyan: ${bLadkiyan}</span>
+        </div>
+        <div class="batch-stat-row" style="margin-top:6px;">
           <span class="batch-present">✅ Haazir: ${bPresent}</span>
           <span class="batch-absent">❌ Ghaib: ${bAbsent}</span>
         </div>
@@ -204,6 +210,10 @@ function showAddStudentForm() {
         <option value="Doosri (2-3 PM)">Doosri (2-3 PM)</option>
         <option value="Teesri (Maghrib-Isha)">Teesri (Maghrib-Isha)</option>
       </select>
+      <select id="sGender" class="input-field">
+        <option value="Ladka">👦 Ladka</option>
+        <option value="Ladki">👧 Ladki</option>
+      </select>
       <button class="btn-primary" onclick="addStudent()">✅ Save Karo</button>
       <button class="btn-cancel" onclick="loadTalaba()">Cancel</button>
     </div>`;
@@ -215,6 +225,7 @@ async function addStudent() {
   let father_name = document.getElementById("sFather").value.trim();
   let phone = document.getElementById("sPhone").value.trim();
   let batch = document.getElementById("sBatch").value;
+  let gender = document.getElementById("sGender").value || "Ladka";
   if (!name) { showToast("⚠ Naam zaruri hai!"); return; }
   if (!batch) { showToast("⚠ Batch select karo!"); return; }
   let { data: allStudents } = await db.from('students').select('name');
@@ -222,7 +233,7 @@ async function addStudent() {
     let duplicate = allStudents.find(s => s.name.trim().toLowerCase() === name.toLowerCase());
     if (duplicate) { showToast("⚠ Yeh naam pehle se mojood hai!"); return; }
   }
-  let { error } = await db.from('students').insert([{ name, father_name, phone, batch }]);
+  let { error } = await db.from('students').insert([{ name, father_name, phone, batch, gender }]);
   if (error) { showToast("Error: " + error.message); return; }
   showToast("✅ Talib add ho gaya!");
   loadTalaba();
@@ -476,17 +487,21 @@ async function loadBatchHaazri(batch) {
   let attMap = {};
   if (todayAtt) todayAtt.forEach(a => attMap[a.student_id] = a.status);
   let presentCount = 0, absentCount = 0;
+  let ladkeCount = 0, ladkiyanCount = 0;
   students.forEach(s => {
     if (attMap[s.id] === 'present') presentCount++;
     else if (attMap[s.id] === 'absent') absentCount++;
+    if (s.gender === 'Ladki') ladkiyanCount++;
+    else ladkeCount++;
   });
   let html = `
     <div style="padding:10px;">
       <button class="btn-cancel" onclick="loadHaazri()" style="width:auto;padding:8px 16px;">← Wapas</button>
     </div>
     <div class="date-banner">📅 ${today} - ${batch}</div>
-    <div id="haazri-counter" style="position:sticky;top:0;z-index:10;background:#fff8e1;border:2px solid #ffc107;border-radius:10px;margin:8px 10px;padding:10px;text-align:center;font-weight:bold;font-size:14px;">
-      ✅ Haazir: ${presentCount} &nbsp;|&nbsp; ❌ Ghaib: ${absentCount} &nbsp;|&nbsp; 👥 Total: ${students.length}
+    <div id="haazri-counter" style="position:sticky;top:0;z-index:10;background:#fff8e1;border:2px solid #ffc107;border-radius:10px;margin:8px 10px;padding:10px;text-align:center;font-weight:bold;font-size:13px;">
+      ✅ Haazir: ${presentCount} &nbsp;|&nbsp; ❌ Ghaib: ${absentCount} &nbsp;|&nbsp; 👥 Total: ${students.length}<br>
+      <span style="color:#1565c0;">👦 Ladke: ${ladkeCount}</span> &nbsp;|&nbsp; <span style="color:#c2185b;">👧 Ladkiyan: ${ladkiyanCount}</span>
     </div>`;
   if (!students || students.length === 0) {
     html += '<div class="card" style="text-align:center;color:#666;padding:30px;">Is batch mein koi talib nahi.</div>';
