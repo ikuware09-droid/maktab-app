@@ -207,6 +207,7 @@ async function toggleGender(id, btn) {
 }
 
 
+function filterStudents() {
   let query = document.getElementById('searchBar').value.toLowerCase();
   let items = document.querySelectorAll('.student-item');
   items.forEach(item => {
