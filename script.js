@@ -1,6 +1,29 @@
 // ===== HOME GRID =====
-function loadHome() {
+async function loadHome() {
+  document.getElementById("app").innerHTML = '<div class="loading">⏳ Loading...</div>';
+  let { data: students } = await db.from('students').select('*');
+  let today = new Date().toISOString().slice(0, 10);
+  let { data: att } = await db.from('attendance').select('*').eq('date', today);
+  let total = students ? students.length : 0;
+  let present = att ? att.filter(a => a.status === 'present').length : 0;
+  let percent = total > 0 ? Math.round((present / total) * 100) : 0;
+
   document.getElementById("app").innerHTML = chuttiBanner() + `
+    <div class="float-bar">
+      <div class="float-stat">
+        <div class="num mono">${total}</div>
+        <div class="lbl urdu">کل طلبہ</div>
+      </div>
+      <div class="float-stat">
+        <div class="num mono" style="color:#117860;">${percent}%</div>
+        <div class="lbl urdu">آج حاضری</div>
+      </div>
+      <div class="float-stat">
+        <div class="num mono">3</div>
+        <div class="lbl urdu">بیچز</div>
+      </div>
+    </div>
+    <div class="section-title"><span class="eyebrow urdu">مین مینیو</span></div>
     <div class="home-grid">
       <div class="tile tile-green" onclick="loadDashboard()">
         <div class="tile-icon">📊</div>
@@ -26,7 +49,7 @@ function loadHome() {
         <div class="tile-icon">📅</div>
         <div class="tile-label">پرانی حاضری</div>
       </div>
-      <div class="tile tile-pink" onclick="loadTopStudents()" style="background:linear-gradient(135deg,#e91e8c,#f06292);">
+      <div class="tile tile-pink" onclick="loadTopStudents()">
         <div class="tile-icon">🏆</div>
         <div class="tile-label">ٹاپ طلبہ</div>
       </div>
@@ -55,7 +78,7 @@ function isChutti() {
 function chuttiBanner() {
   if (!isChutti()) return '';
   return `
-    <div style="background:linear-gradient(135deg,#e9c46a,#f4d03f);color:#1a3d2b;padding:14px 15px;margin:10px 15px;border-radius:14px;text-align:center;box-shadow:0 3px 10px rgba(233,196,106,0.4);">
+    <div style="background:linear-gradient(135deg,#B8862C,#E3C16B);color:#0B4D3A;padding:14px 15px;margin:10px 15px;border-radius:14px;text-align:center;box-shadow:0 3px 10px rgba(233,196,106,0.4);">
       <div style="font-size:28px;">🌙</div>
       <div style="font-weight:bold;font-size:15px;margin:5px 0;">مکتب میں چھٹیاں جاری ہیں</div>
       <div style="font-size:12px;color:#555;">1 مئی تا 14 جون 2026</div>
@@ -92,7 +115,7 @@ async function loadDashboard() {
     let bTotal = batchStudents.length;
     let bAbsent = bTotal - bPresent;
     let bPercent = bTotal > 0 ? Math.round((bPresent / bTotal) * 100) : 0;
-    let color = bPercent >= 75 ? '#2ecc71' : bPercent >= 50 ? '#f39c12' : '#e74c3c';
+    let color = bPercent >= 75 ? '#1C8C6B' : bPercent >= 50 ? '#C9972C' : '#D9614C';
     let bLadke = batchStudents.filter(s => s.gender === 'Ladka' || !s.gender).length;
     let bLadkiyan = batchStudents.filter(s => s.gender === 'Ladki').length;
     batchHtml += `
@@ -100,8 +123,8 @@ async function loadDashboard() {
         <div class="batch-stat-title">${batch}</div>
         <div class="batch-stat-row">
           <span class="batch-total">👥 Kul: ${bTotal}</span>
-          <span style="color:#1565c0;">👦 Ladke: ${bLadke}</span>
-          <span style="color:#c2185b;">👧 Ladkiyan: ${bLadkiyan}</span>
+          <span style="color:#1C6E89;">👦 Ladke: ${bLadke}</span>
+          <span style="color:#BE1A60;">👧 Ladkiyan: ${bLadkiyan}</span>
         </div>
         <div class="batch-stat-row" style="margin-top:6px;">
           <span class="batch-present">✅ Haazir: ${bPresent}</span>
@@ -127,7 +150,7 @@ async function loadDashboard() {
     <div class="date-banner" style="cursor:pointer;" onclick="loadTopStudents()">🏆 Sabse Zyada Haazir Talaba ›</div>
     ${await buildTopStudentsHtml(students)}
     <div class="card" style="text-align:center; margin:10px;">
-      <p style="color:#1a3d2b; font-weight:bold; font-size:18px;">بسم الله الرحمن الرحيم</p>
+      <p style="color:#0B4D3A; font-weight:bold; font-size:18px;">بسم الله الرحمن الرحيم</p>
       <p style="color:#555; font-size:13px;">Maktab Darul Huda Nagothane</p>
     </div>`;
 }
@@ -149,7 +172,7 @@ async function buildTopStudentsHtml(students) {
     }).sort((a, b) => b.presentDays - a.presentDays).slice(0, 5);
     let batchIcon = batch.includes('Pehli') ? '🌅' : batch.includes('Doosri') ? '☀️' : '🌙';
     html += `<div class="card" style="margin:8px 10px;padding:14px;">
-      <div style="font-weight:bold;color:#1a3d2b;font-size:14px;margin-bottom:10px;">${batchIcon} ${batch}</div>`;
+      <div style="font-weight:bold;color:#0B4D3A;font-size:14px;margin-bottom:10px;">${batchIcon} ${batch}</div>`;
     ranked.forEach((s, i) => {
       let genderIcon = s.gender === 'Ladki' ? '👧' : '👦';
       html += `<div onclick="loadProfile(${s.id})" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f0f0f0;cursor:pointer;">
@@ -160,7 +183,7 @@ async function buildTopStudentsHtml(students) {
           <div style="font-size:11px;color:#888;">Walid: ${s.father_name || '-'}</div>
         </div>
         <div style="text-align:right;">
-          <div style="font-weight:bold;color:#2d6a4f;font-size:16px;">${s.presentDays}</div>
+          <div style="font-weight:bold;color:#117860;font-size:16px;">${s.presentDays}</div>
           <div style="font-size:10px;color:#888;">din haazir</div>
         </div>
       </div>`;
@@ -195,7 +218,7 @@ async function loadTalaba() {
     let icon = b.includes('Pehli') ? '🌅' : b.includes('Doosri') ? '☀️' : '🌙';
     batchCounts += `<div style="background:#e9f5ee;border-radius:10px;padding:8px 12px;text-align:center;flex:1;">
       <div style="font-size:18px;">${icon}</div>
-      <div style="font-weight:bold;color:#1a3d2b;font-size:16px;">${count}</div>
+      <div style="font-weight:bold;color:#0B4D3A;font-size:16px;">${count}</div>
       <div style="font-size:10px;color:#666;">${b.split(' ')[0]}</div>
     </div>`;
   });
@@ -224,7 +247,7 @@ async function loadTalaba() {
             </div>
             <div style="display:flex;flex-direction:column;gap:5px;align-items:center;">
               <button class="btn-delete" onclick="event.stopPropagation();deleteStudent(${s.id},'${s.name}')">🗑</button>
-              <span style="font-size:11px;color:#2d6a4f;">Profile ›</span>
+              <span style="font-size:11px;color:#117860;">Profile ›</span>
             </div>
           </div>
           <div style="margin-top:10px;display:flex;gap:8px;align-items:center;" onclick="event.stopPropagation()">
@@ -234,7 +257,7 @@ async function loadTalaba() {
               <option value="Doosri (2-3 PM)" ${s.batch==='Doosri (2-3 PM)'?'selected':''}>☀️ Doosri (2-3 PM)</option>
               <option value="Teesri (Maghrib-Isha)" ${s.batch==='Teesri (Maghrib-Isha)'?'selected':''}>🌙 Teesri (Maghrib-Isha)</option>
             </select>
-            <button id="gbtn-${s.id}" onclick="event.stopPropagation();toggleGender(${s.id},this)" style="padding:7px 12px;border-radius:8px;border:2px solid ${s.gender==='Ladki'?'#c2185b':'#1565c0'};background:${s.gender==='Ladki'?'#fce4ec':'#e3f2fd'};font-size:16px;cursor:pointer;white-space:nowrap;">${s.gender==='Ladki'?'👧 Ladki':'👦 Ladka'}</button>
+            <button id="gbtn-${s.id}" onclick="event.stopPropagation();toggleGender(${s.id},this)" style="padding:7px 12px;border-radius:8px;border:2px solid ${s.gender==='Ladki'?'#BE1A60':'#1C6E89'};background:${s.gender==='Ladki'?'#fce4ec':'#e3f2fd'};font-size:16px;cursor:pointer;white-space:nowrap;">${s.gender==='Ladki'?'👧 Ladki':'👦 Ladka'}</button>
           </div>
         </div>`;
     });
@@ -252,11 +275,11 @@ async function toggleGender(id, btn) {
   if (error) { showToast("Error: " + error.message); return; }
   if (newGender === 'Ladki') {
     btn.innerText = '👧 Ladki';
-    btn.style.border = '2px solid #c2185b';
+    btn.style.border = '2px solid #BE1A60';
     btn.style.background = '#fce4ec';
   } else {
     btn.innerText = '👦 Ladka';
-    btn.style.border = '2px solid #1565c0';
+    btn.style.border = '2px solid #1C6E89';
     btn.style.background = '#e3f2fd';
   }
   showToast("✅ " + newGender + " set ho gaya!");
@@ -275,7 +298,7 @@ function filterStudents() {
 function showAddStudentForm() {
   document.getElementById("formArea").innerHTML = `
     <div class="card form-card">
-      <h3 style="color:#1a3d2b;margin-top:0;">Naya Talib Add Karo</h3>
+      <h3 style="color:#0B4D3A;margin-top:0;">Naya Talib Add Karo</h3>
       <input type="text" id="sName" placeholder="Talib ka naam *" class="input-field">
       <input type="text" id="sFather" placeholder="Walid ka naam" class="input-field">
       <input type="tel" id="sPhone" placeholder="Phone number" class="input-field">
@@ -356,7 +379,7 @@ async function loadProfile(studentId) {
   let present = att ? att.filter(a => a.status === 'present').length : 0;
   let total = att ? att.length : 0;
   let percent = total > 0 ? Math.round((present / total) * 100) : 0;
-  let color = percent >= 75 ? '#2ecc71' : percent >= 50 ? '#f39c12' : '#e74c3c';
+  let color = percent >= 75 ? '#1C8C6B' : percent >= 50 ? '#C9972C' : '#D9614C';
 
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   let feesPaid = fees ? fees.filter(f => f.paid).length : 0;
@@ -391,7 +414,7 @@ async function loadProfile(studentId) {
     <div class="card profile-card" id="profileCard">
       <div style="text-align:center;padding:10px 0;">
         <div class="profile-avatar">${s.name.charAt(0).toUpperCase()}</div>
-        <h2 style="color:#1a3d2b;margin:8px 0 4px;">${s.name}</h2>
+        <h2 style="color:#0B4D3A;margin:8px 0 4px;">${s.name}</h2>
         <p style="color:#666;margin:2px 0;">Walid: ${s.father_name || '-'}</p>
         ${s.phone ? `<p style="color:#666;margin:2px 0;">📞 ${s.phone}</p>` : ''}
         <span class="batch-badge" style="font-size:13px;padding:4px 14px;">${s.batch || '-'}</span>
@@ -401,12 +424,12 @@ async function loadProfile(studentId) {
           <div class="pstat-num" style="color:${color}">${percent}%</div>
           <div class="pstat-label">Haazri</div>
         </div>
-        <div class="pstat" style="border-color:#3498db">
-          <div class="pstat-num" style="color:#3498db">${present}/${total}</div>
+        <div class="pstat" style="border-color:#1C6E89">
+          <div class="pstat-num" style="color:#1C6E89">${present}/${total}</div>
           <div class="pstat-label">Din</div>
         </div>
-        <div class="pstat" style="border-color:#e9c46a">
-          <div class="pstat-num" style="color:#e9c46a">${feesPaid}/12</div>
+        <div class="pstat" style="border-color:#B8862C">
+          <div class="pstat-num" style="color:#B8862C">${feesPaid}/12</div>
           <div class="pstat-label">Fees</div>
         </div>
       </div>
@@ -415,9 +438,9 @@ async function loadProfile(studentId) {
           ${percent > 0 ? percent + '%' : ''}
         </div>
       </div>
-      <h4 style="color:#1a3d2b;margin:15px 0 8px;">💰 Fees ${year}</h4>
+      <h4 style="color:#0B4D3A;margin:15px 0 8px;">💰 Fees ${year}</h4>
       <div class="fee-months-row">${feesHtml}</div>
-      <h4 style="color:#1a3d2b;margin:15px 0 8px;">📅 Haazri (Aakhri 10 din)</h4>
+      <h4 style="color:#0B4D3A;margin:15px 0 8px;">📅 Haazri (Aakhri 10 din)</h4>
       ${attHtml}
     </div>
     <div style="padding:10px;display:flex;gap:8px;flex-wrap:wrap;">
@@ -434,7 +457,7 @@ async function loadProfile(studentId) {
 function showBatchChange(studentId, currentBatch) {
   document.getElementById('batchChangeArea').innerHTML = `
     <div class="card" style="margin:0 10px 15px;">
-      <h4 style="color:#1a3d2b;margin-bottom:10px;">Batch Change Karo</h4>
+      <h4 style="color:#0B4D3A;margin-bottom:10px;">Batch Change Karo</h4>
       <p style="color:#888;font-size:12px;margin-bottom:8px;">Abhi: ${currentBatch}</p>
       <select id="newBatch" class="input-field">
         <option value="">Naya batch select karo</option>
@@ -482,7 +505,7 @@ async function loadMonthlyReport(studentId, name) {
     let present = monthAtt.filter(a => a.status === 'present').length;
     let total = monthAtt.length;
     let percent = total > 0 ? Math.round((present / total) * 100) : 0;
-    let color = total === 0 ? '#ccc' : percent >= 75 ? '#2ecc71' : percent >= 50 ? '#f39c12' : '#e74c3c';
+    let color = total === 0 ? '#ccc' : percent >= 75 ? '#1C8C6B' : percent >= 50 ? '#C9972C' : '#D9614C';
     html += `
       <div class="card" style="margin:6px 10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
@@ -521,7 +544,7 @@ function loadHaazri() {
       <div class="date-banner">📅 ${today}</div>
       <div class="card" style="text-align:center;padding:40px 20px;">
         <div style="font-size:50px;">🌙</div>
-        <h2 style="color:#1a3d2b;margin:10px 0;">مکتب میں چھٹیاں ہیں</h2>
+        <h2 style="color:#0B4D3A;margin:10px 0;">مکتب میں چھٹیاں ہیں</h2>
         <p style="color:#888;">1 مئی تا 14 جون 2026</p>
       </div>`;
     return;
@@ -531,7 +554,7 @@ function loadHaazri() {
       <div class="date-banner">📅 ${today}</div>
       <div class="card" style="text-align:center;padding:40px 20px;">
         <div style="font-size:50px;">🕌</div>
-        <h2 style="color:#1a3d2b;margin:10px 0;">Aaj Chutti Hai</h2>
+        <h2 style="color:#0B4D3A;margin:10px 0;">Aaj Chutti Hai</h2>
         <p style="color:#888;">Sunday ko Maktab band rehta hai.</p>
       </div>`;
     return;
@@ -576,7 +599,7 @@ async function loadBatchHaazri(batch) {
     <div class="date-banner">📅 ${today} - ${batch}</div>
     <div id="haazri-counter" style="position:sticky;top:0;z-index:10;background:#fff8e1;border:2px solid #ffc107;border-radius:10px;margin:8px 10px;padding:10px;text-align:center;font-weight:bold;font-size:13px;">
       ✅ Haazir: ${presentCount} &nbsp;|&nbsp; ❌ Ghaib: ${absentCount} &nbsp;|&nbsp; 👥 Total: ${students.length}<br>
-      <span style="color:#1565c0;">👦 Ladke: ${ladkeCount}</span> &nbsp;|&nbsp; <span style="color:#c2185b;">👧 Ladkiyan: ${ladkiyanCount}</span>
+      <span style="color:#1C6E89;">👦 Ladke: ${ladkeCount}</span> &nbsp;|&nbsp; <span style="color:#BE1A60;">👧 Ladkiyan: ${ladkiyanCount}</span>
     </div>`;
   if (!students || students.length === 0) {
     html += '<div class="card" style="text-align:center;color:#666;padding:30px;">Is batch mein koi talib nahi.</div>';
@@ -660,7 +683,7 @@ async function loadFees() {
       <div class="card fees-card">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <div><b>${s.name}</b><br><small>${s.batch||''}</small></div>
-          <div style="background:#e9f5ee;color:#1a3d2b;padding:4px 10px;border-radius:10px;font-size:13px;">${paidCount}/12 ✅</div>
+          <div style="background:#e9f5ee;color:#0B4D3A;padding:4px 10px;border-radius:10px;font-size:13px;">${paidCount}/12 ✅</div>
         </div>
         <div class="months-grid">${monthBtns}</div>
       </div>`;
@@ -701,7 +724,7 @@ async function loadReport() {
     let present = studentAtt.filter(a => a.status === 'present').length;
     let total = studentAtt.length;
     let percent = total > 0 ? Math.round((present/total)*100) : 0;
-    let color = percent >= 75 ? '#2ecc71' : percent >= 50 ? '#f39c12' : '#e74c3c';
+    let color = percent >= 75 ? '#1C8C6B' : percent >= 50 ? '#C9972C' : '#D9614C';
     html += `
       <div class="card" onclick="loadProfile(${s.id})" style="cursor:pointer;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
@@ -744,11 +767,11 @@ async function showDateHaazri() {
   let absent = total - present;
   
   let html = `
-    <div class="card" style="margin:8px 10px;background:#1a3d2b;color:white;text-align:center;">
+    <div class="card" style="margin:8px 10px;background:#0B4D3A;color:white;text-align:center;">
       <b style="font-size:15px;">📅 ${date}</b><br>
-      <span style="color:#2ecc71;">✅ Haazir: ${present}</span> &nbsp;
-      <span style="color:#e74c3c;">❌ Ghaib: ${absent}</span> &nbsp;
-      <span style="color:#e9c46a;">👦 Kul: ${total}</span>
+      <span style="color:#1C8C6B;">✅ Haazir: ${present}</span> &nbsp;
+      <span style="color:#D9614C;">❌ Ghaib: ${absent}</span> &nbsp;
+      <span style="color:#B8862C;">👦 Kul: ${total}</span>
     </div>`;
   
   let batches = [...new Set(students.map(s => s.batch).filter(Boolean))];
