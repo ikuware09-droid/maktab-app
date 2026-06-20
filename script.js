@@ -1,3 +1,23 @@
+// ===== DAILY HADITH/QUOTE =====
+const dailyQuotes = [
+  { text: "علم حاصل کرنا ہر مسلمان مرد و عورت پر فرض ہے۔", ref: "حدیث شریف" },
+  { text: "جو شخص علم کی تلاش میں نکلتا ہے وہ اللہ کی راہ میں ہے۔", ref: "حدیث شریف" },
+  { text: "نماز دین کا ستون ہے۔", ref: "حدیث شریف" },
+  { text: "بہترین لوگ وہ ہیں جو قرآن سیکھیں اور دوسروں کو سکھائیں۔", ref: "حدیث شریف" },
+  { text: "والدین کے ساتھ نیکی کرنا جنت کا راستہ ہے۔", ref: "حدیث شریف" },
+  { text: "مسکرانا بھی صدقہ ہے۔", ref: "حدیث شریف" },
+  { text: "سچ بولنے والا ہمیشہ سکون میں رہتا ہے۔", ref: "حدیث شریف" },
+  { text: "اللہ صبر کرنے والوں کو پسند فرماتا ہے۔", ref: "قرآن کریم" },
+  { text: "نیکی کا بدلہ نیکی ہی ہے۔", ref: "قرآن کریم" },
+  { text: "جو اللہ پر بھروسہ کرتا ہے، اللہ اس کے لیے کافی ہے۔", ref: "قرآن کریم" },
+  { text: "وقت کی پابندی امانت داری کی نشانی ہے۔", ref: "حدیث شریف" },
+  { text: "بچوں کے ساتھ شفقت سے پیش آؤ، یہی سنت ہے۔", ref: "حدیث شریف" },
+];
+function getDailyQuote() {
+  let dayOfYear = Math.floor((new Date() - new Date(new Date().getFullYear(),0,0)) / 86400000);
+  return dailyQuotes[dayOfYear % dailyQuotes.length];
+}
+
 // ===== HOME GRID =====
 async function loadHome() {
   document.getElementById("app").innerHTML = '<div class="loading">⏳ Loading...</div>';
@@ -22,6 +42,11 @@ async function loadHome() {
         <div class="num mono">3</div>
         <div class="lbl urdu">بیچز</div>
       </div>
+    </div>
+    <div class="card" style="text-align:center;background:linear-gradient(160deg,#fff,#fbfaf5);border:1px solid #e7e2d4;">
+      <div style="font-size:11px;color:#B8862C;font-weight:600;margin-bottom:6px;">📖 آج کی بات</div>
+      <div class="urdu" style="font-size:16px;color:#0B4D3A;line-height:1.8;">${getDailyQuote().text}</div>
+      <div style="font-size:11px;color:#7C8B82;margin-top:6px;">— ${getDailyQuote().ref}</div>
     </div>
     <div class="section-title"><span class="eyebrow urdu">مین مینیو</span></div>
     <div class="home-grid">
@@ -52,6 +77,10 @@ async function loadHome() {
       <div class="tile tile-pink" onclick="loadTopStudents()">
         <div class="tile-icon">🏆</div>
         <div class="tile-label">ٹاپ طلبہ</div>
+      </div>
+      <div class="tile tile-slate" onclick="loadSettings()">
+        <div class="tile-icon">⚙️</div>
+        <div class="tile-label">سیٹنگز</div>
       </div>
     </div>
   `;
@@ -381,6 +410,17 @@ async function loadProfile(studentId) {
   let percent = total > 0 ? Math.round((present / total) * 100) : 0;
   let color = percent >= 75 ? '#1C8C6B' : percent >= 50 ? '#C9972C' : '#D9614C';
 
+  // Streak calculation: consecutive present days from most recent backward
+  let streak = 0;
+  if (att && att.length > 0) {
+    let sortedDesc = [...att].sort((a,b) => new Date(b.date) - new Date(a.date));
+    for (let a of sortedDesc) {
+      if (a.status === 'present') streak++;
+      else break;
+    }
+  }
+  let streakHtml = streak >= 2 ? `<div style="display:inline-block;background:linear-gradient(135deg,#f0b35e,#c97f1f);color:#fff;padding:5px 14px;border-radius:20px;font-size:12px;font-weight:700;margin-top:8px;">🔥 ${streak} din se lagatar haazir!</div>` : '';
+
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   let feesPaid = fees ? fees.filter(f => f.paid).length : 0;
 
@@ -417,7 +457,8 @@ async function loadProfile(studentId) {
         <h2 style="color:#0B4D3A;margin:8px 0 4px;">${s.name}</h2>
         <p style="color:#666;margin:2px 0;">Walid: ${s.father_name || '-'}</p>
         ${s.phone ? `<p style="color:#666;margin:2px 0;">📞 ${s.phone}</p>` : ''}
-        <span class="batch-badge" style="font-size:13px;padding:4px 14px;">${s.batch || '-'}</span>
+        <span class="batch-badge" style="font-size:13px;padding:4px 14px;">${s.batch || '-'}</span><br>
+        ${streakHtml}
       </div>
       <div class="profile-stats">
         <div class="pstat" style="border-color:${color}">
@@ -447,6 +488,9 @@ async function loadProfile(studentId) {
       <button class="btn-share" onclick="shareProfile('${encodeURIComponent(shareText)}')">📤 WhatsApp</button>
       <button class="btn-print" onclick="window.print()">🖨 Print</button>
       <button class="btn-monthly" onclick="loadMonthlyReport(${studentId},'${s.name}')">📊 Monthly</button>
+    </div>
+    <div style="padding:0 10px;">
+      <button class="btn-primary" style="background:linear-gradient(135deg,#B8862C,#E3C16B);" onclick="loadCertificate(${studentId})">🎖️ Certificate Banayein</button>
     </div>
     <div style="padding:0 10px 15px;">
       <button class="btn-batch-change" onclick="showBatchChange(${studentId},'${s.batch}')">🔄 Batch Badlo</button>
@@ -497,6 +541,28 @@ async function loadMonthlyReport(studentId, name) {
     </div>
     <div class="date-banner">📊 ${name} - Monthly ${year}</div>`;
 
+  let monthPercents = [];
+  months.forEach((month, i) => {
+    let monthAtt = att ? att.filter(a => {
+      let d = new Date(a.date);
+      return d.getMonth() === i && d.getFullYear() === year && d.getDay() !== 0;
+    }) : [];
+    let present = monthAtt.filter(a => a.status === 'present').length;
+    let total = monthAtt.length;
+    monthPercents.push(total > 0 ? Math.round((present/total)*100) : 0);
+  });
+  let chartHtml = `<div class="card" style="padding:14px 10px 8px;">
+    <div style="font-size:12px;color:#0B4D3A;font-weight:600;margin-bottom:10px;">📈 Saal Bhar Ka Trend</div>
+    <div style="display:flex;align-items:flex-end;gap:4px;height:80px;direction:ltr;">
+      ${monthPercents.map((p,i) => `
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;">
+          <div style="width:100%;border-radius:4px 4px 0 0;background:${p===0?'#eee9dc':p>=75?'#1C8C6B':p>=50?'#C9972C':'#D9614C'};height:${Math.max(p,4)}%;"></div>
+          <span style="font-size:8px;color:#999;margin-top:3px;">${months[i].slice(0,3)}</span>
+        </div>`).join('')}
+    </div>
+  </div>`;
+
+  html += chartHtml;
   months.forEach((month, i) => {
     let monthAtt = att ? att.filter(a => {
       let d = new Date(a.date);
@@ -536,7 +602,92 @@ async function shareMonthlyReport(studentId, name) {
   window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
 }
 
-// ===== HAAZRI =====
+// ===== CERTIFICATE =====
+async function loadCertificate(studentId) {
+  document.getElementById("app").innerHTML = '<div class="loading">⏳ Loading...</div>';
+  let { data: s } = await db.from('students').select('*').eq('id', studentId).single();
+  let { data: att } = await db.from('attendance').select('*').eq('student_id', studentId);
+  let year = new Date().getFullYear();
+  let present = att ? att.filter(a => a.status === 'present').length : 0;
+  let total = att ? att.length : 0;
+  let percent = total > 0 ? Math.round((present/total)*100) : 0;
+  let today = new Date().toLocaleDateString('en-GB', { day:'numeric', month:'long', year:'numeric' });
+
+  document.getElementById("app").innerHTML = `
+    <div style="padding:10px;">
+      <button class="btn-cancel" onclick="loadProfile(${studentId})" style="width:auto;padding:8px 16px;">← Wapas</button>
+    </div>
+    <div class="card" id="certCard" style="border:6px double #B8862C;background:linear-gradient(160deg,#fffdf8,#fbf6e9);text-align:center;padding:30px 20px;margin:14px 18px;">
+      <div style="font-size:34px;">🕌</div>
+      <h2 class="urdu" style="color:#0B4D3A;margin:8px 0 2px;">مکتب دار الھدیٰ ناگوٹھانہ</h2>
+      <p style="font-size:11px;color:#7C8B82;letter-spacing:1px;">NAGOTHANE · MAHARASHTRA</p>
+      <div style="margin:18px 0;font-size:20px;font-weight:700;color:#B8862C;letter-spacing:1px;">CERTIFICATE OF ATTENDANCE</div>
+      <p style="font-size:13px;color:#555;margin-bottom:6px;">Ye certificate diya jata hai</p>
+      <div style="font-size:24px;font-weight:700;color:#0B4D3A;font-family:'Outfit';margin:6px 0;">${s.name}</div>
+      <p style="font-size:12.5px;color:#777;">Walid: ${s.father_name || '-'} &nbsp;|&nbsp; Batch: ${s.batch || '-'}</p>
+      <p style="font-size:13px;color:#444;margin:18px 0;line-height:1.7;">
+        Saal ${year} mein, mazkoorah talib ne <b style="color:#1C8C6B;">${percent}%</b> haazri ke saath<br>
+        (${present} din haazir, ${total} din mein se) Maktab mein shirkat ki.
+      </p>
+      <div style="font-size:32px;font-weight:800;color:${percent>=75?'#1C8C6B':percent>=50?'#C9972C':'#D9614C'};margin:10px 0;">${percent}%</div>
+      <div style="display:flex;justify-content:space-between;margin-top:30px;padding:0 10px;font-size:12px;color:#555;">
+        <div style="text-align:center;">________________<br>Tarikh<br>${today}</div>
+        <div style="text-align:center;">________________<br>Mohtamim Sahab<br>Dastakhat</div>
+      </div>
+    </div>
+    <div style="padding:0 18px 20px;">
+      <button class="btn-print" style="width:100%;" onclick="window.print()">🖨 Certificate Print Karo</button>
+    </div>`;
+}
+
+
+// ===== SETTINGS: BACKUP =====
+function loadSettings() {
+  document.getElementById("app").innerHTML = `
+    <div style="padding:10px;">
+      <button class="btn-cancel" onclick="loadHome()" style="width:auto;padding:8px 16px;">← Wapas</button>
+    </div>
+    <div class="date-banner">⚙️ Settings</div>
+    <div class="card">
+      <h4 style="color:#0B4D3A;margin-bottom:8px;">💾 Data Backup</h4>
+      <p style="font-size:12px;color:#888;margin-bottom:10px;">Talaba, haazri, aur fees ka data Excel (CSV) file mein save karo.</p>
+      <button class="btn-primary" style="background:linear-gradient(135deg,#1C6E89,#3aa0bd);" onclick="backupData()">📥 Backup Download Karo</button>
+    </div>`;
+}
+
+function toCSV(rows) {
+  return rows.map(r => r.map(v => `"${String(v===null||v===undefined?'':v).replace(/"/g,'""')}"`).join(',')).join('\n');
+}
+function downloadCSV(filename, csvContent) {
+  let blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+  let url = URL.createObjectURL(blob);
+  let a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+async function backupData() {
+  showToast("⏳ Backup tayar ho raha hai...");
+  let { data: students } = await db.from('students').select('*');
+  let { data: att } = await db.from('attendance').select('*');
+  let { data: fees } = await db.from('fees').select('*');
+
+  let studentRows = [['ID','Naam','Walid','Phone','Batch','Gender'], ...(students||[]).map(s => [s.id,s.name,s.father_name,s.phone,s.batch,s.gender])];
+  downloadCSV('talaba.csv', toCSV(studentRows));
+
+  setTimeout(() => {
+    let attRows = [['Student ID','Date','Status'], ...(att||[]).map(a => [a.student_id,a.date,a.status])];
+    downloadCSV('haazri.csv', toCSV(attRows));
+  }, 400);
+
+  setTimeout(() => {
+    let feeRows = [['Student ID','Month','Year','Paid'], ...(fees||[]).map(f => [f.student_id,f.month,f.year,f.paid])];
+    downloadCSV('fees.csv', toCSV(feeRows));
+    showToast("✅ Backup ho gaya! 3 files download hui");
+  }, 800);
+}
+
 function loadHaazri() {
   let today = new Date().toISOString().slice(0, 10);
   if (isChutti()) {
@@ -679,6 +830,8 @@ async function loadFees() {
       if (paid) paidCount++;
       monthBtns += `<button class="month-btn ${paid?'paid':'unpaid'}" onclick="toggleFee(${s.id},${month},this)">${m}</button>`;
     });
+    let reminderBtn = (paidCount < 12 && s.phone) ?
+      `<button onclick="sendFeeReminder(${s.id},'${s.name}','${s.phone}')" style="background:#25D366;color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:11px;margin-top:8px;cursor:pointer;">📲 Reminder Bhejo</button>` : '';
     html += `
       <div class="card fees-card">
         <div style="display:flex;justify-content:space-between;align-items:center;">
@@ -686,9 +839,17 @@ async function loadFees() {
           <div style="background:#e9f5ee;color:#0B4D3A;padding:4px 10px;border-radius:10px;font-size:13px;">${paidCount}/12 ✅</div>
         </div>
         <div class="months-grid">${monthBtns}</div>
+        ${reminderBtn}
       </div>`;
   });
   document.getElementById("app").innerHTML = html;
+}
+
+function sendFeeReminder(studentId, name, phone) {
+  let cleanPhone = phone.replace(/\D/g,'');
+  if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
+  let text = `Assalamu Alaikum,\n\n${name} ki Maktab Darul Huda Nagothane ki fees baaki hai. Mahirbani karke jald se jald jama karwa dein.\n\nJazakAllah Khair`;
+  window.open('https://wa.me/' + cleanPhone + '?text=' + encodeURIComponent(text), '_blank');
 }
 
 async function toggleFee(studentId, month, btn) {
