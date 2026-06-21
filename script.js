@@ -669,6 +669,8 @@ async function loadCertificate(studentId) {
 
 
 // ===== HIFZ TRACKER (JUMA) =====
+const hifzAyatCounts = [6,5,4,5,3,6,3,7,4,5,9,3,8,11,11,8,8,5,19,8,8,11,21,15,20,30,26,19,17,22,25,36,19,29,42,46,40];
+
 async function loadHifz() {
   document.getElementById("app").innerHTML = '<div class="loading">⏳ Loading...</div>';
   let { data: students } = await db.from('students').select('*').eq('is_quran_student', true).order('name');
@@ -686,37 +688,87 @@ async function loadHifz() {
     return;
   }
 
+  let surahOptions = items.map((it,i) => `<option value="${i}">${it.title}</option>`).join('');
+
   students.forEach(s => {
-    let prog = s.hifz_progress || 0;
-    let dueItem = items && items[prog] ? items[prog] : null;
-    let isDone = !dueItem;
+    let prog = Math.min(s.hifz_progress || 0, items.length - 1);
+    let curAyat = s.current_ayat || 0;
+    let totalAyat = hifzAyatCounts[prog] || 0;
     html += `
       <div class="card" id="hifzcard-${s.id}" style="padding:14px 16px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
           <b style="font-size:14px;">${s.name}</b>
-          <span style="font-size:11px;color:#888;">${prog}/${items?items.length:0} mukammal</span>
+          <button onclick="toggleHifzHistory(${s.id})" style="background:none;border:none;color:#1C6E89;font-size:11px;">📜 Tareekh</button>
         </div>
-        ${isDone ?
-          `<div style="margin-top:8px;background:linear-gradient(135deg,#f0b35e,#c97f1f);color:#fff;padding:10px;border-radius:10px;text-align:center;font-weight:700;">🎉 Para 30 Mukammal Ho Gaya!</div>`
-          :
-          `<div class="urdu" style="margin-top:8px;background:#e9f5ee;color:#0B4D3A;padding:10px;border-radius:10px;text-align:center;font-size:16px;font-weight:700;">اگلی سورت: ${dueItem.title}</div>
-          <div style="display:flex;gap:8px;margin-top:8px;">
-            <button onclick="advanceHifz(${s.id},this)" style="flex:1;background:#1C8C6B;color:#fff;border:none;padding:9px;border-radius:8px;font-weight:600;font-size:12px;">✅ Yaad Ho Gaya</button>
-            <button onclick="showToast('Theek hai, agle juma phir koshish karo')" style="flex:1;background:#fdf1ef;color:#D9614C;border:1px solid #D9614C;padding:9px;border-radius:8px;font-weight:600;font-size:12px;">❌ Nahi Aaya</button>
-          </div>`
-        }
+        <label style="font-size:11px;color:#888;">سورت (agar galat ho to badlo)</label>
+        <select id="surahSel-${s.id}" class="input-field" style="margin:3px 0 8px;" onchange="changeHifzSurah(${s.id}, this.value)">
+          ${surahOptions}
+        </select>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:12px;color:#555;">آیات سنائی:</span>
+          <input type="number" id="ayatInput-${s.id}" min="0" max="${totalAyat}" value="${curAyat}" class="input-field" style="margin:0;width:70px;text-align:center;">
+          <span style="font-size:12px;color:#888;">/ ${totalAyat} ayat</span>
+        </div>
+        <button onclick="saveHifzProgress(${s.id})" style="width:100%;margin-top:8px;background:#1C8C6B;color:#fff;border:none;padding:9px;border-radius:8px;font-weight:600;font-size:12px;">💾 Aaj Ka Save Karo</button>
+        <div id="hifzHistory-${s.id}" style="display:none;margin-top:10px;border-top:1px dotted #e3ddcd;padding-top:8px;"></div>
       </div>`;
   });
   document.getElementById("app").innerHTML = html;
+
+  // attach surah select id to surah dropdown default value
+  students.forEach(s => {
+    let sel = document.getElementById('surahSel-' + s.id);
+    if (sel) sel.value = Math.min(s.hifz_progress || 0, items.length - 1);
+  });
 }
 
-async function advanceHifz(studentId, btn) {
+async function changeHifzSurah(studentId, newIndex) {
+  newIndex = parseInt(newIndex);
+  await db.from('students').update({ hifz_progress: newIndex, current_ayat: 0 }).eq('id', studentId);
+  let totalAyat = hifzAyatCounts[newIndex] || 0;
+  document.getElementById('ayatInput-' + studentId).value = 0;
+  document.getElementById('ayatInput-' + studentId).max = totalAyat;
+  document.getElementById('ayatInput-' + studentId).nextElementSibling.innerText = '/ ' + totalAyat + ' ayat';
+  showToast("✅ Surat update ho gayi");
+}
+
+async function saveHifzProgress(studentId) {
+  let { data: items } = await db.from('syllabus_items').select('*').eq('type', 'hifz').order('order_index');
   let { data: s } = await db.from('students').select('hifz_progress').eq('id', studentId).single();
-  let newProgress = (s.hifz_progress || 0) + 1;
-  await db.from('students').update({ hifz_progress: newProgress }).eq('id', studentId);
-  showToast("✅ Mubarak! Agli surat ke liye tayyar");
+  let prog = Math.min(s.hifz_progress || 0, items.length - 1);
+  let totalAyat = hifzAyatCounts[prog] || 0;
+  let surahTitle = items[prog].title;
+  let ayatEntered = parseInt(document.getElementById('ayatInput-' + studentId).value) || 0;
+  if (ayatEntered < 0) ayatEntered = 0;
+  if (ayatEntered > totalAyat) ayatEntered = totalAyat;
+
+  let today = new Date().toISOString().slice(0,10);
+  await db.from('hifz_log').insert([{ student_id: studentId, date: today, surah_title: surahTitle, ayat_done: ayatEntered, total_ayat: totalAyat }]);
+
+  if (ayatEntered >= totalAyat && totalAyat > 0) {
+    let nextIndex = prog + 1;
+    await db.from('students').update({ hifz_progress: nextIndex, current_ayat: 0 }).eq('id', studentId);
+    showToast("🎉 Surat mukammal! Agli surat tayyar hai");
+  } else {
+    await db.from('students').update({ current_ayat: ayatEntered }).eq('id', studentId);
+    showToast("✅ Save ho gaya");
+  }
   loadHifz();
 }
+
+async function toggleHifzHistory(studentId) {
+  let box = document.getElementById('hifzHistory-' + studentId);
+  if (box.style.display === 'block') { box.style.display = 'none'; return; }
+  let { data: logs } = await db.from('hifz_log').select('*').eq('student_id', studentId).order('date', { ascending: false }).limit(6);
+  if (!logs || logs.length === 0) {
+    box.innerHTML = '<small style="color:#999;">Abhi tak koi record nahi.</small>';
+  } else {
+    box.innerHTML = logs.map(l => `<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:4px 0;direction:ltr;"><span>${l.date}</span><span class="urdu">${l.surah_title}</span><span>${l.ayat_done}/${l.total_ayat}</span></div>`).join('');
+  }
+  box.style.display = 'block';
+}
+
+
 
 
 function loadSettings() {
