@@ -74,6 +74,10 @@ async function loadHome() {
         <div class="tile-icon">📅</div>
         <div class="tile-label">پرانی حاضری</div>
       </div>
+      <div class="tile tile-green" style="--tile-icon-bg:none;" onclick="loadHifz()">
+        <div class="tile-icon" style="background:linear-gradient(160deg,#3aa896,#0B4D3A);">📖</div>
+        <div class="tile-label">حفظ (جمعہ)</div>
+      </div>
       <div class="tile tile-pink" onclick="loadTopStudents()">
         <div class="tile-icon">🏆</div>
         <div class="tile-label">ٹاپ طلبہ</div>
@@ -288,6 +292,9 @@ async function loadTalaba() {
             </select>
             <button id="gbtn-${s.id}" onclick="event.stopPropagation();toggleGender(${s.id},this)" style="padding:7px 12px;border-radius:8px;border:2px solid ${s.gender==='Ladki'?'#BE1A60':'#1C6E89'};background:${s.gender==='Ladki'?'#fce4ec':'#e3f2fd'};font-size:16px;cursor:pointer;white-space:nowrap;">${s.gender==='Ladki'?'👧 Ladki':'👦 Ladka'}</button>
           </div>
+          <div style="margin-top:7px;" onclick="event.stopPropagation()">
+            <button id="qbtn-${s.id}" onclick="toggleQuranStudent(${s.id},this)" style="width:100%;padding:7px 10px;border-radius:8px;border:2px solid ${s.is_quran_student?'#1C8C6B':'#ccc'};background:${s.is_quran_student?'#e9f5ee':'#f5f5f0'};color:${s.is_quran_student?'#0B4D3A':'#999'};font-size:12px;cursor:pointer;font-weight:600;">${s.is_quran_student ? '📖 Quran/Hifz Talib ✅' : '➕ Quran/Hifz Talib Banao'}</button>
+          </div>
         </div>`;
     });
   } else {
@@ -296,6 +303,26 @@ async function loadTalaba() {
   html += '</div>';
   document.getElementById("app").innerHTML = html;
 }
+
+async function toggleQuranStudent(id, btn) {
+  let isCurrentlyOn = btn.innerText.includes('✅');
+  let newVal = !isCurrentlyOn;
+  let { error } = await db.from('students').update({ is_quran_student: newVal }).eq('id', id);
+  if (error) { showToast("Error: " + error.message); return; }
+  if (newVal) {
+    btn.innerText = '📖 Quran/Hifz Talib ✅';
+    btn.style.border = '2px solid #1C8C6B';
+    btn.style.background = '#e9f5ee';
+    btn.style.color = '#0B4D3A';
+  } else {
+    btn.innerText = '➕ Quran/Hifz Talib Banao';
+    btn.style.border = '2px solid #ccc';
+    btn.style.background = '#f5f5f0';
+    btn.style.color = '#999';
+  }
+  showToast(newVal ? "✅ Quran/Hifz list mein shamil" : "➖ Hata diya gaya");
+}
+
 
 async function toggleGender(id, btn) {
   let isLadki = btn.innerText.includes('Ladki');
@@ -641,7 +668,57 @@ async function loadCertificate(studentId) {
 }
 
 
-// ===== SETTINGS: BACKUP =====
+// ===== HIFZ TRACKER (JUMA) =====
+async function loadHifz() {
+  document.getElementById("app").innerHTML = '<div class="loading">⏳ Loading...</div>';
+  let { data: students } = await db.from('students').select('*').eq('is_quran_student', true).order('name');
+  let { data: items } = await db.from('syllabus_items').select('*').eq('type', 'hifz').order('order_index');
+
+  let html = `
+    <div style="padding:10px;">
+      <button class="btn-cancel" onclick="loadHome()" style="width:auto;padding:8px 16px;">← Wapas</button>
+    </div>
+    <div class="date-banner">📖 حفظ سبق — جمعہ</div>`;
+
+  if (!students || students.length === 0) {
+    html += `<div class="card" style="text-align:center;color:#666;padding:30px;">Koi Quran/Hifz talib nahi hai.<br><small>Talaba list mein "Quran/Hifz Talib Banao" button se add karo.</small></div>`;
+    document.getElementById("app").innerHTML = html;
+    return;
+  }
+
+  students.forEach(s => {
+    let prog = s.hifz_progress || 0;
+    let dueItem = items && items[prog] ? items[prog] : null;
+    let isDone = !dueItem;
+    html += `
+      <div class="card" id="hifzcard-${s.id}" style="padding:14px 16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <b style="font-size:14px;">${s.name}</b>
+          <span style="font-size:11px;color:#888;">${prog}/${items?items.length:0} mukammal</span>
+        </div>
+        ${isDone ?
+          `<div style="margin-top:8px;background:linear-gradient(135deg,#f0b35e,#c97f1f);color:#fff;padding:10px;border-radius:10px;text-align:center;font-weight:700;">🎉 Para 30 Mukammal Ho Gaya!</div>`
+          :
+          `<div class="urdu" style="margin-top:8px;background:#e9f5ee;color:#0B4D3A;padding:10px;border-radius:10px;text-align:center;font-size:16px;font-weight:700;">اگلی سورت: ${dueItem.title}</div>
+          <div style="display:flex;gap:8px;margin-top:8px;">
+            <button onclick="advanceHifz(${s.id},this)" style="flex:1;background:#1C8C6B;color:#fff;border:none;padding:9px;border-radius:8px;font-weight:600;font-size:12px;">✅ Yaad Ho Gaya</button>
+            <button onclick="showToast('Theek hai, agle juma phir koshish karo')" style="flex:1;background:#fdf1ef;color:#D9614C;border:1px solid #D9614C;padding:9px;border-radius:8px;font-weight:600;font-size:12px;">❌ Nahi Aaya</button>
+          </div>`
+        }
+      </div>`;
+  });
+  document.getElementById("app").innerHTML = html;
+}
+
+async function advanceHifz(studentId, btn) {
+  let { data: s } = await db.from('students').select('hifz_progress').eq('id', studentId).single();
+  let newProgress = (s.hifz_progress || 0) + 1;
+  await db.from('students').update({ hifz_progress: newProgress }).eq('id', studentId);
+  showToast("✅ Mubarak! Agli surat ke liye tayyar");
+  loadHifz();
+}
+
+
 function loadSettings() {
   document.getElementById("app").innerHTML = `
     <div style="padding:10px;">
