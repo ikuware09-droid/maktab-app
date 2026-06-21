@@ -1,4 +1,85 @@
-// ===== DAILY HADITH/QUOTE =====
+// ===== DAILY POSTER (ATTENDANCE + QUOTE) =====
+async function generateDailyPoster() {
+  showToast("⏳ Poster tayyar ho raha hai...");
+  let { data: students } = await db.from('students').select('*');
+  let today = new Date().toISOString().slice(0, 10);
+  let { data: att } = await db.from('attendance').select('*').eq('date', today);
+  let total = students ? students.length : 0;
+  let present = att ? att.filter(a => a.status === 'present').length : 0;
+  let absent = total - present;
+  let percent = total > 0 ? Math.round((present / total) * 100) : 0;
+  let quote = getDailyQuote();
+  let dateStr = new Date().toLocaleDateString('en-GB', { day:'numeric', month:'long', year:'numeric' });
+
+  let poster = document.createElement('div');
+  poster.style.position = 'fixed';
+  poster.style.left = '-9999px';
+  poster.style.top = '0';
+  poster.style.width = '400px';
+  poster.style.fontFamily = "'Outfit', sans-serif";
+  poster.style.background = 'linear-gradient(170deg,#0B4D3A,#117860 45%,#F7F4EC 45%)';
+  poster.style.padding = '0';
+  poster.innerHTML = `
+    <div style="padding:28px 24px 20px;text-align:center;color:#fff;">
+      <div style="width:56px;height:56px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#E3C16B,#B8862C);display:flex;align-items:center;justify-content:center;font-size:26px;margin:0 auto 10px;">🕌</div>
+      <div style="font-family:'Noto Nastaliq Urdu',serif;font-size:19px;font-weight:700;">مکتب دار الھدیٰ ناگوٹھانہ</div>
+      <div style="font-size:11px;opacity:0.8;margin-top:2px;letter-spacing:1px;">NAGOTHANE · MAHARASHTRA</div>
+      <div style="font-size:12px;margin-top:10px;background:rgba(255,255,255,0.12);display:inline-block;padding:5px 16px;border-radius:14px;">📅 ${dateStr}</div>
+    </div>
+    <div style="background:#fff;margin:0 18px;border-radius:18px;padding:18px;box-shadow:0 8px 20px rgba(0,0,0,0.15);position:relative;top:-10px;">
+      <div style="display:flex;gap:8px;text-align:center;">
+        <div style="flex:1;background:#f7f4ec;border-radius:12px;padding:10px 4px;">
+          <div style="font-family:'JetBrains Mono';font-size:20px;font-weight:700;color:#0B4D3A;">${total}</div>
+          <div style="font-size:9.5px;color:#888;margin-top:2px;">کل طلبہ</div>
+        </div>
+        <div style="flex:1;background:#e9f5ee;border-radius:12px;padding:10px 4px;">
+          <div style="font-family:'JetBrains Mono';font-size:20px;font-weight:700;color:#117860;">${present}</div>
+          <div style="font-size:9.5px;color:#888;margin-top:2px;">حاضر</div>
+        </div>
+        <div style="flex:1;background:#fdf1ef;border-radius:12px;padding:10px 4px;">
+          <div style="font-family:'JetBrains Mono';font-size:20px;font-weight:700;color:#D9614C;">${absent}</div>
+          <div style="font-size:9.5px;color:#888;margin-top:2px;">غائب</div>
+        </div>
+        <div style="flex:1;background:#fbf3e0;border-radius:12px;padding:10px 4px;">
+          <div style="font-family:'JetBrains Mono';font-size:20px;font-weight:700;color:#B8862C;">${percent}%</div>
+          <div style="font-size:9.5px;color:#888;margin-top:2px;">حاضری</div>
+        </div>
+      </div>
+    </div>
+    <div style="margin:14px 18px 0;background:#fff;border-radius:16px;padding:18px;box-shadow:0 6px 16px rgba(0,0,0,0.08);">
+      <div style="font-size:11px;color:#B8862C;font-weight:700;margin-bottom:8px;">📖 آج کی بات</div>
+      <div style="font-family:'Noto Nastaliq Urdu',serif;font-size:17px;color:#0B4D3A;line-height:1.9;text-align:center;">${quote.text}</div>
+      <div style="font-size:11px;color:#999;text-align:center;margin-top:6px;">— ${quote.ref}</div>
+    </div>
+    <div style="text-align:center;padding:18px 0 22px;color:#0B4D3A;font-size:10.5px;opacity:0.7;">Maktab Darul Huda Nagothane</div>
+  `;
+  document.body.appendChild(poster);
+
+  try {
+    let canvas = await html2canvas(poster, { scale: 2, backgroundColor: '#F7F4EC' });
+    document.body.removeChild(poster);
+    canvas.toBlob(async (blob) => {
+      let file = new File([blob], 'maktab-poster.png', { type: 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: 'Maktab Darul Huda - Aaj Ka Update' });
+        } catch (e) { /* user cancelled share, ignore */ }
+      } else {
+        let url = URL.createObjectURL(blob);
+        let a = document.createElement('a');
+        a.href = url; a.download = 'maktab-poster.png';
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast("✅ Poster download ho gaya! WhatsApp se share karo");
+      }
+    }, 'image/png');
+  } catch (e) {
+    if (poster.parentNode) document.body.removeChild(poster);
+    showToast("⚠ Poster banane mein masla aaya");
+  }
+}
+
+
 const dailyQuotes = [
   { text: "علم حاصل کرنا ہر مسلمان مرد و عورت پر فرض ہے۔", ref: "حدیث شریف" },
   { text: "جو شخص علم کی تلاش میں نکلتا ہے وہ اللہ کی راہ میں ہے۔", ref: "حدیث شریف" },
@@ -171,6 +252,9 @@ async function loadDashboard() {
   });
 
   document.getElementById("app").innerHTML = `
+    <div style="padding:10px 18px 0;">
+      <button onclick="generateDailyPoster()" style="width:100%;background:linear-gradient(135deg,#25D366,#1ea952);color:#fff;border:none;padding:12px;border-radius:12px;font-weight:700;font-size:14px;">📤 آج کا پوسٹر بنائیں اور شیئر کریں</button>
+    </div>
     <div class="grid">
       <div class="card stat-card"><div class="stat-icon">👦</div><div class="stat-num">${total}</div><div class="stat-label">Kul Talaba</div></div>
       <div class="card stat-card green-card"><div class="stat-icon">✅</div><div class="stat-num">${present}</div><div class="stat-label">Aaj Haazir</div></div>
