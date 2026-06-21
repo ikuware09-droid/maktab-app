@@ -364,9 +364,11 @@ async function loadTalaba() {
             </div>
             <div style="display:flex;flex-direction:column;gap:5px;align-items:center;">
               <button class="btn-delete" onclick="event.stopPropagation();deleteStudent(${s.id},'${s.name}')">🗑</button>
+              <button onclick="event.stopPropagation();showEditStudent(${s.id})" style="background:#fbf3e0;color:#B8862C;border:1px solid #B8862C;padding:8px 12px;border-radius:10px;cursor:pointer;font-size:16px;">✏️</button>
               <span style="font-size:11px;color:#117860;">Profile ›</span>
             </div>
           </div>
+          <div id="editForm-${s.id}" style="display:none;margin-top:10px;padding-top:10px;border-top:1px dashed #e3ddcd;" onclick="event.stopPropagation()"></div>
           <div style="margin-top:10px;display:flex;gap:8px;align-items:center;" onclick="event.stopPropagation()">
             <select onchange="quickBatchChange(${s.id}, this.value, this)" class="input-field" style="margin:0;flex:1;font-size:12px;padding:7px 10px;">
               <option value="">🔄 Batch Badlo</option>
@@ -497,6 +499,29 @@ async function quickBatchChange(studentId, newBatch, select) {
   let card = select.closest('.card');
   let badge = card.querySelector('.batch-badge');
   if (badge) badge.innerText = newBatch;
+}
+
+async function showEditStudent(id) {
+  let box = document.getElementById('editForm-' + id);
+  if (box.style.display === 'block') { box.style.display = 'none'; return; }
+  let { data: s } = await db.from('students').select('*').eq('id', id).single();
+  box.innerHTML = `
+    <input type="text" id="editName-${id}" class="input-field" value="${s.name}" placeholder="Naam">
+    <input type="text" id="editFather-${id}" class="input-field" value="${s.father_name || ''}" placeholder="Walid ka naam">
+    <input type="tel" id="editPhone-${id}" class="input-field" value="${s.phone || ''}" placeholder="Phone number">
+    <button onclick="saveEditStudent(${id})" style="width:100%;background:#1C8C6B;color:#fff;border:none;padding:10px;border-radius:8px;font-weight:600;font-size:13px;margin-top:5px;">💾 Save Karo</button>`;
+  box.style.display = 'block';
+}
+
+async function saveEditStudent(id) {
+  let name = document.getElementById('editName-' + id).value.trim();
+  let father_name = document.getElementById('editFather-' + id).value.trim();
+  let phone = document.getElementById('editPhone-' + id).value.trim();
+  if (!name) { showToast("⚠ Naam khali nahi ho sakta"); return; }
+  let { error } = await db.from('students').update({ name, father_name, phone }).eq('id', id);
+  if (error) { showToast("Error: " + error.message); return; }
+  showToast("✅ Update ho gaya");
+  loadTalaba();
 }
 
 async function deleteStudent(id, name) {
