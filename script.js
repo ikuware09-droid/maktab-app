@@ -215,7 +215,7 @@ async function loadDashboard() {
   let { data: att } = await db.from('attendance').select('*').eq('date', today);
   let total = students ? students.length : 0;
   let present = att ? att.filter(a => a.status === 'present').length : 0;
-  let absent = att ? att.filter(a => a.status === 'absent').length : 0;
+  let absent = total - present;
   let percent = total > 0 ? Math.round((present / total) * 100) : 0;
 
   // Batch wise breakdown
