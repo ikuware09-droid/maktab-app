@@ -142,24 +142,49 @@ async function loadHome() {
   let present = att ? att.filter(a => a.status === 'present').length : 0;
   let percent = total > 0 ? Math.round((present / total) * 100) : 0;
 
-  let presentIds = att ? att.filter(a => a.status === 'present').map(a => a.student_id) : [];
-  let absentStudents = students ? students.filter(s => !presentIds.includes(s.id)) : [];
   let batchOrder = ['Pehli (7-8 AM)', 'Doosri (2-3 PM)', 'Teesri (Maghrib-Isha)'];
+  let batchIcons = { 'Pehli (7-8 AM)': '🌅', 'Doosri (2-3 PM)': '☀️', 'Teesri (Maghrib-Isha)': '🌙' };
   let absentHtml = '';
-  if (absentStudents.length > 0) {
-    absentHtml = `<div class="card" style="padding:16px 18px;">
-      <div style="font-weight:700;color:#D9614C;font-size:13px;margin-bottom:10px;">❌ آج کے غائب طلبہ (${absentStudents.length})</div>`;
-    batchOrder.forEach(batch => {
-      let list = absentStudents.filter(s => s.batch === batch);
-      if (list.length === 0) return;
-      absentHtml += `<div style="margin-bottom:8px;">
-        <div style="font-size:11.5px;color:#0B4D3A;font-weight:600;margin-bottom:4px;">${batch} (${list.length})</div>
-        <div style="font-size:12.5px;color:#555;line-height:1.7;">${list.map(s=>s.name).join('، ')}</div>
+  let anyBatchShown = false;
+
+  batchOrder.forEach(batch => {
+    let batchStudents = students ? students.filter(s => s.batch === batch) : [];
+    if (batchStudents.length === 0) return;
+    let batchAttToday = att ? att.filter(a => batchStudents.some(s => s.id === a.student_id)) : [];
+    if (batchAttToday.length === 0) {
+      // Attendance not taken yet for this batch — don't show as absent
+      return;
+    }
+    anyBatchShown = true;
+    let presentIdsInBatch = batchAttToday.filter(a => a.status === 'present').map(a => a.student_id);
+    let absentInBatch = batchStudents.filter(s => !presentIdsInBatch.includes(s.id));
+    if (absentInBatch.length === 0) {
+      absentHtml += `<div class="card" style="padding:14px 16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <b style="font-size:13px;color:#0B4D3A;">${batchIcons[batch]} ${batch}</b>
+          <span style="background:#e9f5ee;color:#0B4D3A;padding:3px 12px;border-radius:10px;font-size:11.5px;font-weight:600;">🎉 سب حاضر</span>
+        </div>
       </div>`;
-    });
-    absentHtml += `</div>`;
-  } else {
+      return;
+    }
+    let namesHtml = absentInBatch.map((s, i) => `<div style="padding:5px 0;border-bottom:1px dotted #f0ebe0;">${i+1}. ${s.name}</div>`).join('');
+    absentHtml += `<div class="card" style="padding:14px 16px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;border-bottom:2px solid #D9614C;padding-bottom:8px;">
+        <b style="font-size:13px;color:#0B4D3A;">${batchIcons[batch]} ${batch}</b>
+        <span style="background:#D9614C;color:#fff;padding:3px 12px;border-radius:10px;font-size:11.5px;font-weight:600;">${absentInBatch.length} غائب</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px;direction:ltr;font-size:12.5px;color:#444;text-align:left;">
+        ${namesHtml}
+      </div>
+    </div>`;
+  });
+
+  if (!anyBatchShown) {
+    absentHtml = `<div class="card" style="text-align:center;padding:14px;color:#888;font-size:13px;">⏳ Abhi tak kisi batch ki haazri nahi li gayi.</div>`;
+  } else if (absentHtml === '') {
     absentHtml = `<div class="card" style="text-align:center;padding:14px;color:#1C8C6B;font-weight:600;font-size:13px;">🎉 Aaj koi ghaib nahi hai!</div>`;
+  } else {
+    absentHtml = `<div class="section-title"><span class="eyebrow urdu">آج کے غائب طلبہ — بیچ وار</span></div>` + absentHtml;
   }
 
   document.getElementById("app").innerHTML = chuttiBanner() + `
