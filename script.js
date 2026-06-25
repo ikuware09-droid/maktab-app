@@ -258,8 +258,15 @@ const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 
 // ===== CHUTTI CHECK =====
+// One-off holidays (Eid, Ashura, etc.) — add date as 'YYYY-MM-DD' when needed
+const oneOffHolidays = [
+  { date: '2026-06-26', label: '10 محرم — یوم عاشورہ' },
+];
+
 function isChutti() {
   let today = new Date();
+  let todayStr = today.toISOString().slice(0, 10);
+  if (oneOffHolidays.some(h => h.date === todayStr)) return true;
   let month = today.getMonth() + 1; // 1-12
   let day = today.getDate();
   // 1 May to 15 June
@@ -270,6 +277,16 @@ function isChutti() {
 
 function chuttiBanner() {
   if (!isChutti()) return '';
+  let today = new Date().toISOString().slice(0, 10);
+  let oneOff = oneOffHolidays.find(h => h.date === today);
+  if (oneOff) {
+    return `
+      <div style="background:linear-gradient(135deg,#B8862C,#E3C16B);color:#0B4D3A;padding:14px 15px;margin:10px 15px;border-radius:14px;text-align:center;box-shadow:0 3px 10px rgba(233,196,106,0.4);">
+        <div style="font-size:28px;">🌙</div>
+        <div style="font-weight:bold;font-size:15px;margin:5px 0;">آج چھٹی ہے</div>
+        <div style="font-size:13px;color:#555;">${oneOff.label}</div>
+      </div>`;
+  }
   return `
     <div style="background:linear-gradient(135deg,#B8862C,#E3C16B);color:#0B4D3A;padding:14px 15px;margin:10px 15px;border-radius:14px;text-align:center;box-shadow:0 3px 10px rgba(233,196,106,0.4);">
       <div style="font-size:28px;">🌙</div>
