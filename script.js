@@ -1,30 +1,3 @@
-async function sendAbsentListWhatsApp() {
-  showToast("⏳ List tayyar ho rahi hai...");
-  let { data: students } = await db.from('students').select('*').order('batch').order('name');
-  let today = new Date().toISOString().slice(0, 10);
-  let { data: att } = await db.from('attendance').select('*').eq('date', today);
-  let presentIds = att ? att.filter(a => a.status === 'present').map(a => a.student_id) : [];
-  let absentStudents = students ? students.filter(s => !presentIds.includes(s.id)) : [];
-
-  if (absentStudents.length === 0) {
-    showToast("🎉 Aaj koi ghaib nahi hai!");
-    return;
-  }
-
-  let batches = [...new Set(absentStudents.map(s => s.batch).filter(Boolean))];
-  let dateStr = new Date().toLocaleDateString('en-GB', { day:'numeric', month:'long', year:'numeric' });
-  let text = `*مکتب دار الھدیٰ ناگوٹھانہ*\n📅 ${dateStr}\n\n*آج کے غائب طلبہ:*\n`;
-  batches.forEach(batch => {
-    text += `\n*${batch}*\n`;
-    absentStudents.filter(s => s.batch === batch).forEach((s, i) => {
-      text += `${i+1}. ${s.name}\n`;
-    });
-  });
-  text += `\nKul Ghaib: ${absentStudents.length}`;
-
-  window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
-}
-
 
 async function generateDailyPoster() {
   showToast("⏳ Poster tayyar ho raha hai...");
@@ -347,7 +320,6 @@ async function loadDashboard() {
   document.getElementById("app").innerHTML = `
     <div style="padding:10px 18px 0;">
       <button onclick="generateDailyPoster()" style="width:100%;background:linear-gradient(135deg,#25D366,#1ea952);color:#fff;border:none;padding:12px;border-radius:12px;font-weight:700;font-size:14px;">📤 آج کا پوسٹر بنائیں اور شیئر کریں</button>
-      <button onclick="sendAbsentListWhatsApp()" style="width:100%;background:#fff;color:#D9614C;border:2px solid #D9614C;padding:11px;border-radius:12px;font-weight:700;font-size:13px;margin-top:8px;">📋 آج کے غائب طلبہ کی لسٹ بھیجیں</button>
     </div>
     <div class="grid">
       <div class="card stat-card"><div class="stat-icon">👦</div><div class="stat-num">${total}</div><div class="stat-label">Kul Talaba</div></div>
@@ -1094,12 +1066,13 @@ async function loadBatchHaazri(batch) {
     html += `
       <div class="card" id="hcard-${s.id}" style="margin:5px 10px;padding:12px;">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
-          <div class="student-name">${s.name}</div>
+          <div class="student-name" onclick="loadProfile(${s.id})" style="cursor:pointer;text-decoration:underline;text-decoration-color:#e7e2d4;">${s.name}</div>
           <div style="display:flex;gap:6px;align-items:center;">
             <div class="att-buttons">
               <button class="btn-present ${status==='present'?'active-green':''}" onclick="mark(${s.id},'present',this)">✔ Haazir</button>
               <button class="btn-absent ${status==='absent'?'active-red':''}" onclick="mark(${s.id},'absent',this)">✖ Ghaib</button>
             </div>
+            <button onclick="loadProfile(${s.id})" style="background:#e3f2fd;color:#1C6E89;border:1px solid #1C6E89;padding:6px 10px;border-radius:8px;cursor:pointer;font-size:14px;">👤</button>
             <button class="btn-delete" onclick="deleteStudentFromHaazri(${s.id},'${s.name}')" style="padding:6px 10px;font-size:14px;">🗑</button>
           </div>
         </div>
