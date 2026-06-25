@@ -144,6 +144,7 @@ async function loadHome() {
 
   let batchOrder = ['Pehli (7-8 AM)', 'Doosri (2-3 PM)', 'Teesri (Maghrib-Isha)'];
   let batchIcons = { 'Pehli (7-8 AM)': '🌅', 'Doosri (2-3 PM)': '☀️', 'Teesri (Maghrib-Isha)': '🌙' };
+  let batchColors = { 'Pehli (7-8 AM)': '#B8862C', 'Doosri (2-3 PM)': '#1C6E89', 'Teesri (Maghrib-Isha)': '#7A4B8C' };
   let absentHtml = '';
   let anyBatchShown = false;
 
@@ -151,29 +152,40 @@ async function loadHome() {
     let batchStudents = students ? students.filter(s => s.batch === batch) : [];
     if (batchStudents.length === 0) return;
     let batchAttToday = att ? att.filter(a => batchStudents.some(s => s.id === a.student_id)) : [];
-    if (batchAttToday.length === 0) {
-      // Attendance not taken yet for this batch — don't show as absent
-      return;
-    }
+    if (batchAttToday.length === 0) return;
     anyBatchShown = true;
+    let accent = batchColors[batch];
     let presentIdsInBatch = batchAttToday.filter(a => a.status === 'present').map(a => a.student_id);
     let absentInBatch = batchStudents.filter(s => !presentIdsInBatch.includes(s.id));
+
     if (absentInBatch.length === 0) {
-      absentHtml += `<div class="card" style="padding:14px 16px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-          <b style="font-size:13px;color:#0B4D3A;">${batchIcons[batch]} ${batch}</b>
-          <span style="background:#e9f5ee;color:#0B4D3A;padding:3px 12px;border-radius:10px;font-size:11.5px;font-weight:600;">🎉 سب حاضر</span>
+      absentHtml += `<div class="card" style="padding:0;overflow:hidden;border-left:4px solid #1C8C6B;">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div style="width:34px;height:34px;border-radius:10px;background:linear-gradient(160deg,#1C8C6B,#0B4D3A);display:flex;align-items:center;justify-content:center;font-size:16px;">${batchIcons[batch]}</div>
+            <b style="font-size:13px;color:#0B4D3A;">${batch}</b>
+          </div>
+          <span style="background:linear-gradient(135deg,#1C8C6B,#0B4D3A);color:#fff;padding:4px 13px;border-radius:20px;font-size:11px;font-weight:700;">🎉 سب حاضر</span>
         </div>
       </div>`;
       return;
     }
-    let namesHtml = absentInBatch.map((s, i) => `<div style="padding:5px 0;border-bottom:1px dotted #f0ebe0;">${i+1}. ${s.name}</div>`).join('');
-    absentHtml += `<div class="card" style="padding:14px 16px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;border-bottom:2px solid #D9614C;padding-bottom:8px;">
-        <b style="font-size:13px;color:#0B4D3A;">${batchIcons[batch]} ${batch}</b>
-        <span style="background:#D9614C;color:#fff;padding:3px 12px;border-radius:10px;font-size:11.5px;font-weight:600;">${absentInBatch.length} غائب</span>
+
+    let namesHtml = absentInBatch.map((s, i) => `
+      <div style="display:flex;align-items:center;gap:7px;padding:6px 8px;border-radius:8px;background:${i%2===0?'#faf8f3':'transparent'};">
+        <span style="width:20px;height:20px;border-radius:50%;background:${accent}22;color:${accent};font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${i+1}</span>
+        <span style="font-size:12.5px;color:#333;">${s.name}</span>
+      </div>`).join('');
+
+    absentHtml += `<div class="card" style="padding:0;overflow:hidden;border-left:4px solid ${accent};">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px 10px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="width:34px;height:34px;border-radius:10px;background:linear-gradient(160deg,${accent}cc,${accent});display:flex;align-items:center;justify-content:center;font-size:16px;">${batchIcons[batch]}</div>
+          <b style="font-size:13px;color:#0B4D3A;">${batch}</b>
+        </div>
+        <span style="background:linear-gradient(135deg,#e0685a,#D9614C);color:#fff;padding:4px 13px;border-radius:20px;font-size:11px;font-weight:700;">${absentInBatch.length} غائب</span>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px;direction:ltr;font-size:12.5px;color:#444;text-align:left;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 10px;direction:ltr;padding:4px 12px 12px;">
         ${namesHtml}
       </div>
     </div>`;
@@ -186,6 +198,7 @@ async function loadHome() {
   } else {
     absentHtml = `<div class="section-title"><span class="eyebrow urdu">آج کے غائب طلبہ — بیچ وار</span></div>` + absentHtml;
   }
+
 
   document.getElementById("app").innerHTML = chuttiBanner() + `
     <div class="float-bar">
