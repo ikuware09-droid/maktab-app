@@ -1,4 +1,31 @@
-// ===== DAILY POSTER (ATTENDANCE + QUOTE) =====
+async function sendAbsentListWhatsApp() {
+  showToast("⏳ List tayyar ho rahi hai...");
+  let { data: students } = await db.from('students').select('*').order('batch').order('name');
+  let today = new Date().toISOString().slice(0, 10);
+  let { data: att } = await db.from('attendance').select('*').eq('date', today);
+  let presentIds = att ? att.filter(a => a.status === 'present').map(a => a.student_id) : [];
+  let absentStudents = students ? students.filter(s => !presentIds.includes(s.id)) : [];
+
+  if (absentStudents.length === 0) {
+    showToast("🎉 Aaj koi ghaib nahi hai!");
+    return;
+  }
+
+  let batches = [...new Set(absentStudents.map(s => s.batch).filter(Boolean))];
+  let dateStr = new Date().toLocaleDateString('en-GB', { day:'numeric', month:'long', year:'numeric' });
+  let text = `*مکتب دار الھدیٰ ناگوٹھانہ*\n📅 ${dateStr}\n\n*آج کے غائب طلبہ:*\n`;
+  batches.forEach(batch => {
+    text += `\n*${batch}*\n`;
+    absentStudents.filter(s => s.batch === batch).forEach((s, i) => {
+      text += `${i+1}. ${s.name}\n`;
+    });
+  });
+  text += `\nKul Ghaib: ${absentStudents.length}`;
+
+  window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+}
+
+
 async function generateDailyPoster() {
   showToast("⏳ Poster tayyar ho raha hai...");
   let { data: students } = await db.from('students').select('*');
@@ -80,6 +107,12 @@ async function generateDailyPoster() {
 }
 
 
+function getHijriDate() {
+  try {
+    return new Intl.DateTimeFormat('en-TN-u-ca-islamic', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date()) + ' ھ';
+  } catch (e) { return ''; }
+}
+
 const dailyQuotes = [
   { text: "علم حاصل کرنا ہر مسلمان مرد و عورت پر فرض ہے۔", ref: "حدیث شریف" },
   { text: "جو شخص علم کی تلاش میں نکلتا ہے وہ اللہ کی راہ میں ہے۔", ref: "حدیث شریف" },
@@ -124,6 +157,7 @@ async function loadHome() {
         <div class="lbl urdu">بیچز</div>
       </div>
     </div>
+    <div style="text-align:center;font-size:11px;color:#7C8B82;margin:8px 0 0;">🌙 ${getHijriDate()}</div>
     <div class="card" style="text-align:center;background:linear-gradient(160deg,#fff,#fbfaf5);border:1px solid #e7e2d4;">
       <div style="font-size:11px;color:#B8862C;font-weight:600;margin-bottom:6px;">📖 آج کی بات</div>
       <div class="urdu" style="font-size:16px;color:#0B4D3A;line-height:1.8;">${getDailyQuote().text}</div>
@@ -254,6 +288,7 @@ async function loadDashboard() {
   document.getElementById("app").innerHTML = `
     <div style="padding:10px 18px 0;">
       <button onclick="generateDailyPoster()" style="width:100%;background:linear-gradient(135deg,#25D366,#1ea952);color:#fff;border:none;padding:12px;border-radius:12px;font-weight:700;font-size:14px;">📤 آج کا پوسٹر بنائیں اور شیئر کریں</button>
+      <button onclick="sendAbsentListWhatsApp()" style="width:100%;background:#fff;color:#D9614C;border:2px solid #D9614C;padding:11px;border-radius:12px;font-weight:700;font-size:13px;margin-top:8px;">📋 آج کے غائب طلبہ کی لسٹ بھیجیں</button>
     </div>
     <div class="grid">
       <div class="card stat-card"><div class="stat-icon">👦</div><div class="stat-num">${total}</div><div class="stat-label">Kul Talaba</div></div>
