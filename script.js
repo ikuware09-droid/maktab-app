@@ -142,6 +142,26 @@ async function loadHome() {
   let present = att ? att.filter(a => a.status === 'present').length : 0;
   let percent = total > 0 ? Math.round((present / total) * 100) : 0;
 
+  let presentIds = att ? att.filter(a => a.status === 'present').map(a => a.student_id) : [];
+  let absentStudents = students ? students.filter(s => !presentIds.includes(s.id)) : [];
+  let batchOrder = ['Pehli (7-8 AM)', 'Doosri (2-3 PM)', 'Teesri (Maghrib-Isha)'];
+  let absentHtml = '';
+  if (absentStudents.length > 0) {
+    absentHtml = `<div class="card" style="padding:16px 18px;">
+      <div style="font-weight:700;color:#D9614C;font-size:13px;margin-bottom:10px;">❌ آج کے غائب طلبہ (${absentStudents.length})</div>`;
+    batchOrder.forEach(batch => {
+      let list = absentStudents.filter(s => s.batch === batch);
+      if (list.length === 0) return;
+      absentHtml += `<div style="margin-bottom:8px;">
+        <div style="font-size:11.5px;color:#0B4D3A;font-weight:600;margin-bottom:4px;">${batch} (${list.length})</div>
+        <div style="font-size:12.5px;color:#555;line-height:1.7;">${list.map(s=>s.name).join('، ')}</div>
+      </div>`;
+    });
+    absentHtml += `</div>`;
+  } else {
+    absentHtml = `<div class="card" style="text-align:center;padding:14px;color:#1C8C6B;font-weight:600;font-size:13px;">🎉 Aaj koi ghaib nahi hai!</div>`;
+  }
+
   document.getElementById("app").innerHTML = chuttiBanner() + `
     <div class="float-bar">
       <div class="float-stat">
@@ -158,6 +178,7 @@ async function loadHome() {
       </div>
     </div>
     <div style="text-align:center;font-size:11px;color:#7C8B82;margin:8px 0 0;">🌙 ${getHijriDate()}</div>
+    ${absentHtml}
     <div class="card" style="text-align:center;background:linear-gradient(160deg,#fff,#fbfaf5);border:1px solid #e7e2d4;">
       <div style="font-size:11px;color:#B8862C;font-weight:600;margin-bottom:6px;">📖 آج کی بات</div>
       <div class="urdu" style="font-size:16px;color:#0B4D3A;line-height:1.8;">${getDailyQuote().text}</div>
