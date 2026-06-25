@@ -201,7 +201,6 @@ async function loadHome() {
         <div class="lbl urdu">بیچز</div>
       </div>
     </div>
-    <div style="text-align:center;font-size:11px;color:#7C8B82;margin:8px 0 0;">🌙 ${getHijriDate()}</div>
     ${absentHtml}
     <div class="card" style="text-align:center;background:linear-gradient(160deg,#fff,#fbfaf5);border:1px solid #e7e2d4;">
       <div style="font-size:11px;color:#B8862C;font-weight:600;margin-bottom:6px;">📖 آج کی بات</div>
