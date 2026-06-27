@@ -128,64 +128,6 @@ async function loadHome() {
   let present = att ? att.filter(a => a.status === 'present').length : 0;
   let percent = total > 0 ? Math.round((present / total) * 100) : 0;
 
-  let batchOrder = ['Pehli (7-8 AM)', 'Doosri (2-3 PM)', 'Teesri (Maghrib-Isha)'];
-  let batchIcons = { 'Pehli (7-8 AM)': '🌅', 'Doosri (2-3 PM)': '☀️', 'Teesri (Maghrib-Isha)': '🌙' };
-  let batchColors = { 'Pehli (7-8 AM)': '#B8862C', 'Doosri (2-3 PM)': '#1C6E89', 'Teesri (Maghrib-Isha)': '#7A4B8C' };
-  let absentHtml = '';
-  let anyBatchShown = false;
-
-  batchOrder.forEach(batch => {
-    let batchStudents = students ? students.filter(s => s.batch === batch) : [];
-    if (batchStudents.length === 0) return;
-    let batchAttToday = att ? att.filter(a => batchStudents.some(s => s.id === a.student_id)) : [];
-    if (batchAttToday.length === 0) return;
-    anyBatchShown = true;
-    let accent = batchColors[batch];
-    let presentIdsInBatch = batchAttToday.filter(a => a.status === 'present').map(a => a.student_id);
-    let absentInBatch = batchStudents.filter(s => !presentIdsInBatch.includes(s.id));
-
-    if (absentInBatch.length === 0) {
-      absentHtml += `<div class="card" style="padding:0;overflow:hidden;border-left:4px solid #1C8C6B;">
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;">
-          <div style="display:flex;align-items:center;gap:10px;">
-            <div style="width:34px;height:34px;border-radius:10px;background:linear-gradient(160deg,#1C8C6B,#0B4D3A);display:flex;align-items:center;justify-content:center;font-size:16px;">${batchIcons[batch]}</div>
-            <b style="font-size:13px;color:#0B4D3A;">${batch}</b>
-          </div>
-          <span style="background:linear-gradient(135deg,#1C8C6B,#0B4D3A);color:#fff;padding:4px 13px;border-radius:20px;font-size:11px;font-weight:700;">🎉 سب حاضر</span>
-        </div>
-      </div>`;
-      return;
-    }
-
-    let namesHtml = absentInBatch.map((s, i) => `
-      <div style="display:flex;align-items:center;gap:7px;padding:6px 8px;border-radius:8px;background:${i%2===0?'#faf8f3':'transparent'};">
-        <span style="width:20px;height:20px;border-radius:50%;background:${accent}22;color:${accent};font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${i+1}</span>
-        <span style="font-size:12.5px;color:#333;">${s.name}</span>
-      </div>`).join('');
-
-    absentHtml += `<div class="card" style="padding:0;overflow:hidden;border-left:4px solid ${accent};">
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px 10px;">
-        <div style="display:flex;align-items:center;gap:10px;">
-          <div style="width:34px;height:34px;border-radius:10px;background:linear-gradient(160deg,${accent}cc,${accent});display:flex;align-items:center;justify-content:center;font-size:16px;">${batchIcons[batch]}</div>
-          <b style="font-size:13px;color:#0B4D3A;">${batch}</b>
-        </div>
-        <span style="background:linear-gradient(135deg,#e0685a,#D9614C);color:#fff;padding:4px 13px;border-radius:20px;font-size:11px;font-weight:700;">${absentInBatch.length} غائب</span>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 10px;direction:ltr;padding:4px 12px 12px;">
-        ${namesHtml}
-      </div>
-    </div>`;
-  });
-
-  if (!anyBatchShown) {
-    absentHtml = `<div class="card" style="text-align:center;padding:14px;color:#888;font-size:13px;">⏳ Abhi tak kisi batch ki haazri nahi li gayi.</div>`;
-  } else if (absentHtml === '') {
-    absentHtml = `<div class="card" style="text-align:center;padding:14px;color:#1C8C6B;font-weight:600;font-size:13px;">🎉 Aaj koi ghaib nahi hai!</div>`;
-  } else {
-    absentHtml = `<div class="section-title"><span class="eyebrow urdu">آج کے غائب طلبہ — بیچ وار</span></div>` + absentHtml;
-  }
-
-
   document.getElementById("app").innerHTML = chuttiBanner() + `
     <div class="float-bar">
       <div class="float-stat">
@@ -201,7 +143,6 @@ async function loadHome() {
         <div class="lbl urdu">بیچز</div>
       </div>
     </div>
-    ${absentHtml}
     <div class="card" style="text-align:center;background:linear-gradient(160deg,#fff,#fbfaf5);border:1px solid #e7e2d4;">
       <div style="font-size:11px;color:#B8862C;font-weight:600;margin-bottom:6px;">📖 آج کی بات</div>
       <div class="urdu" style="font-size:16px;color:#0B4D3A;line-height:1.8;">${getDailyQuote().text}</div>
@@ -1063,6 +1004,7 @@ function loadHaazri() {
 
 async function loadBatchHaazri(batch) {
   document.getElementById("app").innerHTML = '<div class="loading">⏳ Loading...</div>';
+  currentHaazriBatch = batch;
   let { data: students } = await db.from('students').select('*').eq('batch', batch).order('name');
   let today = new Date().toISOString().slice(0, 10);
   let { data: todayAtt } = await db.from('attendance').select('*').eq('date', today);
@@ -1082,7 +1024,7 @@ async function loadBatchHaazri(batch) {
     </div>
     <div class="date-banner">📅 ${today} - ${batch}</div>
     <div id="haazri-counter" style="position:sticky;top:0;z-index:10;background:#fff8e1;border:2px solid #ffc107;border-radius:10px;margin:8px 10px;padding:10px;text-align:center;font-weight:bold;font-size:13px;">
-      ✅ Haazir: ${presentCount} &nbsp;|&nbsp; ❌ Ghaib: ${absentCount} &nbsp;|&nbsp; 👥 Total: ${students.length}<br>
+      ✅ Haazir: <span id="cnt-present">${presentCount}</span> &nbsp;|&nbsp; ❌ Ghaib: <span id="cnt-absent">${absentCount}</span> &nbsp;|&nbsp; 👥 Total: <span id="cnt-total">${students.length}</span><br>
       <span style="color:#1C6E89;">👦 Ladke: ${ladkeCount}</span> &nbsp;|&nbsp; <span style="color:#BE1A60;">👧 Ladkiyan: ${ladkiyanCount}</span>
     </div>`;
   if (!students || students.length === 0) {
@@ -1113,7 +1055,22 @@ async function loadBatchHaazri(batch) {
         </select>
       </div>`;
   });
+  html += `
+    <div style="height:70px;"></div>
+    <button id="ghaibFab" onclick="openGhaibModal()" style="position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#D9614C,#e0685a);color:#fff;border:none;padding:13px 26px;border-radius:30px;font-size:13.5px;font-weight:700;box-shadow:0 8px 20px rgba(217,97,76,0.4);display:${absentCount>0?'flex':'none'};align-items:center;gap:8px;max-width:380px;width:90%;justify-content:center;z-index:20;">
+      ❌ Ghaib List Dekho <span id="ghaibFabBadge" style="background:#fff;color:#D9614C;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:12px;">${absentCount}</span>
+    </button>
+    <div id="ghaibOverlay" style="position:fixed;inset:0;background:rgba(0,0,0,0.4);display:none;align-items:flex-end;justify-content:center;z-index:99;" onclick="if(event.target===this)closeGhaibModal()">
+      <div style="background:#fff;width:100%;max-width:420px;border-radius:24px 24px 0 0;padding:20px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+          <h3 style="font-size:15px;color:#0B4D3A;">❌ Aaj Ke Ghaib — ${batch}</h3>
+          <span onclick="closeGhaibModal()" style="font-size:18px;color:#999;cursor:pointer;">✕</span>
+        </div>
+        <div id="ghaibModalList"></div>
+      </div>
+    </div>`;
   document.getElementById("app").innerHTML = html;
+  updateHaazriCounter();
 }
 
 async function mark(studentId, status, btn) {
@@ -1131,14 +1088,55 @@ async function mark(studentId, status, btn) {
   updateHaazriCounter();
 }
 
+let currentHaazriBatch = '';
+
 function updateHaazriCounter() {
   let counterEl = document.getElementById('haazri-counter');
   if (!counterEl) return;
   let presentCount = document.querySelectorAll('.btn-present.active-green').length;
-  let absentCount = document.querySelectorAll('.btn-absent.active-red').length;
+  let absentBtns = document.querySelectorAll('.btn-absent.active-red');
   let totalCount = document.querySelectorAll('[id^="hcard-"]').length;
-  counterEl.innerHTML = `✅ Haazir: ${presentCount} &nbsp;|&nbsp; ❌ Ghaib: ${absentCount} &nbsp;|&nbsp; 👥 Total: ${totalCount}`;
+
+  let presentEl = document.getElementById('cnt-present');
+  let absentEl = document.getElementById('cnt-absent');
+  let totalEl = document.getElementById('cnt-total');
+  if (presentEl) presentEl.innerText = presentCount;
+  if (absentEl) absentEl.innerText = absentBtns.length;
+  if (totalEl) totalEl.innerText = totalCount;
+
+  let fab = document.getElementById('ghaibFab');
+  let badge = document.getElementById('ghaibFabBadge');
+  if (fab && badge) {
+    badge.innerText = absentBtns.length;
+    fab.style.display = absentBtns.length > 0 ? 'flex' : 'none';
+  }
 }
+
+function openGhaibModal() {
+  let absentBtns = document.querySelectorAll('.btn-absent.active-red');
+  let listEl = document.getElementById('ghaibModalList');
+  if (listEl) {
+    if (absentBtns.length === 0) {
+      listEl.innerHTML = '<div style="text-align:center;color:#999;padding:10px;">Koi ghaib nahi hai.</div>';
+    } else {
+      listEl.innerHTML = Array.from(absentBtns).map((btn, i) => {
+        let card = btn.closest('.card');
+        let nameEl = card ? card.querySelector('.student-name') : null;
+        let name = nameEl ? nameEl.innerText : '';
+        return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px dotted #eee;">
+          <span style="width:24px;height:24px;border-radius:50%;background:#fdf1ef;color:#D9614C;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;">${i+1}</span> ${name}
+        </div>`;
+      }).join('');
+    }
+  }
+  document.getElementById('ghaibOverlay').style.display = 'flex';
+}
+
+function closeGhaibModal() {
+  document.getElementById('ghaibOverlay').style.display = 'none';
+}
+
+
 
 // ===== FEES =====
 async function loadFees() {
