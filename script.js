@@ -119,9 +119,29 @@ function getDailyQuote() {
 }
 
 // ===== HOME GRID =====
+let allStudentsCache = [];
+
+function searchHomeStudents(query) {
+  let box = document.getElementById('homeSearchResults');
+  if (!box) return;
+  query = query.trim().toLowerCase();
+  if (!query) { box.innerHTML = ''; return; }
+  let results = allStudentsCache.filter(s => s.name.toLowerCase().includes(query)).slice(0, 8);
+  if (results.length === 0) {
+    box.innerHTML = '<div style="background:#fff;border-radius:14px;padding:14px;text-align:center;color:#999;font-size:12.5px;">Koi talib nahi mila.</div>';
+    return;
+  }
+  box.innerHTML = results.map(s => `
+    <div onclick="loadProfile(${s.id})" style="background:#fff;border-radius:14px;padding:11px 14px;margin-bottom:7px;display:flex;align-items:center;gap:12px;box-shadow:0 4px 10px rgba(11,77,58,0.06);cursor:pointer;">
+      <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(160deg,#1C8C6B,#0B4D3A);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0;">${s.name.charAt(0)}</div>
+      <div><b style="font-size:13.5px;">${s.name}</b><br><small style="color:#999;font-size:11px;">${s.batch || ''}</small></div>
+    </div>`).join('');
+}
+
 async function loadHome() {
   document.getElementById("app").innerHTML = '<div class="loading">⏳ Loading...</div>';
   let { data: students } = await db.from('students').select('*');
+  allStudentsCache = students || [];
   let today = new Date().toISOString().slice(0, 10);
   let { data: att } = await db.from('attendance').select('*').eq('date', today);
   let total = students ? students.length : 0;
@@ -143,6 +163,11 @@ async function loadHome() {
         <div class="lbl urdu">بیچز</div>
       </div>
     </div>
+    <div style="margin:12px 18px 0;background:#fff;border-radius:16px;padding:11px 16px;box-shadow:0 6px 16px rgba(11,77,58,0.07);display:flex;align-items:center;gap:8px;">
+      <span style="font-size:15px;">🔍</span>
+      <input type="text" id="homeSearchInput" placeholder="Talib ka naam likho..." oninput="searchHomeStudents(this.value)" style="border:none;outline:none;flex:1;font-size:14px;direction:rtl;font-family:'Outfit',sans-serif;">
+    </div>
+    <div id="homeSearchResults" style="margin:6px 18px 0;"></div>
     <div class="card" style="text-align:center;background:linear-gradient(160deg,#fff,#fbfaf5);border:1px solid #e7e2d4;">
       <div style="font-size:11px;color:#B8862C;font-weight:600;margin-bottom:6px;">📖 آج کی بات</div>
       <div class="urdu" style="font-size:16px;color:#0B4D3A;line-height:1.8;">${getDailyQuote().text}</div>
@@ -244,6 +269,13 @@ function showToast(msg) {
 }
 
 // ===== DASHBOARD =====
+function sendLongAbsentMessage(studentId, name, phone) {
+  let cleanPhone = phone.replace(/\D/g,'');
+  if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
+  let text = `Assalamu Alaikum,\n\n${name} ki taraf se Maktab Darul Huda Nagothane mein guzashta 3 dinon se hazri darj nahi hui hai.\n\nMehrbani farma kar wajah agah karayen ya bachay ko maktab bhejne ka intizam farmayen.\n\nJazakAllah Khair\nMaktab Darul Huda Nagothane`;
+  window.open('https://wa.me/' + cleanPhone + '?text=' + encodeURIComponent(text), '_blank');
+}
+
 async function loadDashboard() {
   document.getElementById("app").innerHTML = '<div class="loading">⏳ Loading...</div>';
   let { data: students } = await db.from('students').select('*');
@@ -287,10 +319,36 @@ async function loadDashboard() {
       </div>`;
   });
 
+  // 3+ din se continuous ghaib talaba dhoondo
+  let { data: recentAtt } = await db.from('attendance').select('*').gte('date', new Date(Date.now() - 10*86400000).toISOString().slice(0,10)).order('date', { ascending: false });
+  let longAbsentees = [];
+  if (students && recentAtt) {
+    students.forEach(s => {
+      if (!s.phone) return;
+      let studentRecords = recentAtt.filter(a => a.student_id === s.id).sort((a,b) => new Date(b.date) - new Date(a.date));
+      if (studentRecords.length >= 3 && studentRecords.slice(0,3).every(a => a.status === 'absent')) {
+        longAbsentees.push({ ...s, lastDates: studentRecords.slice(0,3).map(a=>a.date) });
+      }
+    });
+  }
+  let absentAlertHtml = '';
+  if (longAbsentees.length > 0) {
+    absentAlertHtml = `<div class="card" style="border:2px solid #D9614C;background:#fdf6f5;">
+      <h4 style="color:#D9614C;margin-bottom:8px;font-size:13px;">⚠️ 3+ Din Se Mutawatir Ghaib</h4>`;
+    longAbsentees.forEach(s => {
+      absentAlertHtml += `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px dotted #f0d9d6;">
+        <div><b style="font-size:13px;">${s.name}</b><br><small style="color:#999;font-size:10.5px;">${s.batch || ''}</small></div>
+        <button onclick="sendLongAbsentMessage(${s.id},'${s.name}','${s.phone}')" style="background:#25D366;color:#fff;border:none;padding:7px 12px;border-radius:8px;font-size:11px;font-weight:600;">📲 Message Bhejo</button>
+      </div>`;
+    });
+    absentAlertHtml += `</div>`;
+  }
+
   document.getElementById("app").innerHTML = `
     <div style="padding:10px 18px 0;">
       <button onclick="generateDailyPoster()" style="width:100%;background:linear-gradient(135deg,#25D366,#1ea952);color:#fff;border:none;padding:12px;border-radius:12px;font-weight:700;font-size:14px;">📤 آج کا پوسٹر بنائیں اور شیئر کریں</button>
     </div>
+    ${absentAlertHtml}
     <div class="grid">
       <div class="card stat-card"><div class="stat-icon">👦</div><div class="stat-num">${total}</div><div class="stat-label">Kul Talaba</div></div>
       <div class="card stat-card green-card"><div class="stat-icon">✅</div><div class="stat-num">${present}</div><div class="stat-label">Aaj Haazir</div></div>
@@ -664,6 +722,9 @@ async function loadProfile(studentId) {
     <div style="padding:0 10px;">
       <button class="btn-primary" style="background:linear-gradient(135deg,#B8862C,#E3C16B);" onclick="loadCertificate(${studentId})">🎖️ Certificate Banayein</button>
     </div>
+    <div style="padding:8px 10px 0;">
+      <button class="btn-primary" style="background:linear-gradient(135deg,#0B4D3A,#117860);" onclick="loadReportCard(${studentId})">📑 Annual Report Card</button>
+    </div>
     <div style="padding:0 10px 15px;">
       <button class="btn-batch-change" onclick="showBatchChange(${studentId},'${s.batch}')">🔄 Batch Badlo</button>
     </div>
@@ -775,6 +836,58 @@ async function shareMonthlyReport(studentId, name) {
 }
 
 // ===== CERTIFICATE =====
+// ===== ANNUAL REPORT CARD (PRINT) =====
+async function loadReportCard(studentId) {
+  document.getElementById("app").innerHTML = '<div class="loading">⏳ Loading...</div>';
+  let { data: s } = await db.from('students').select('*').eq('id', studentId).single();
+  let year = new Date().getFullYear();
+  let { data: att } = await db.from('attendance').select('*').eq('student_id', studentId);
+  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  let rows = '';
+  let totalPresent = 0, totalDays = 0;
+  months.forEach((m, i) => {
+    let monthAtt = att ? att.filter(a => {
+      let d = new Date(a.date);
+      return d.getMonth() === i && d.getFullYear() === year && d.getDay() !== 0;
+    }) : [];
+    let present = monthAtt.filter(a => a.status === 'present').length;
+    let total = monthAtt.length;
+    if (total > 0) {
+      let pct = Math.round((present/total)*100);
+      totalPresent += present; totalDays += total;
+      rows += `<tr><td>${m}</td><td>${present}/${total}</td><td>${pct}%</td></tr>`;
+    }
+  });
+  let overallPct = totalDays > 0 ? Math.round((totalPresent/totalDays)*100) : 0;
+
+  document.getElementById("app").innerHTML = `
+    <div style="padding:10px;">
+      <button class="btn-cancel" onclick="loadProfile(${studentId})" style="width:auto;padding:8px 16px;">← Wapas</button>
+    </div>
+    <div class="card" style="border:2px solid #0B4D3A;border-radius:6px;padding:22px;margin:14px 18px;">
+      <div style="text-align:center;border-bottom:2px solid #B8862C;padding-bottom:14px;margin-bottom:14px;">
+        <b style="font-size:16px;color:#0B4D3A;display:block;">🕌 مکتب دار الھدیٰ ناگوٹھانہ</b>
+        <small style="font-size:10.5px;color:#999;">NAGOTHANE, MAHARASHTRA</small>
+      </div>
+      <div style="text-align:center;background:#0B4D3A;color:#E3C16B;padding:6px;font-size:13px;font-weight:700;border-radius:4px;margin-bottom:14px;">ANNUAL REPORT CARD — ${year}</div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12.5px;border-bottom:1px dotted #eee;"><span>Naam</span><b style="color:#0B4D3A;">${s.name}</b></div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12.5px;border-bottom:1px dotted #eee;"><span>Walid ka Naam</span><b style="color:#0B4D3A;">${s.father_name || '-'}</b></div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12.5px;border-bottom:1px dotted #eee;"><span>Batch</span><b style="color:#0B4D3A;">${s.batch || '-'}</b></div>
+      <table style="width:100%;border-collapse:collapse;margin-top:10px;font-size:11.5px;">
+        <tr><th style="background:#e9f5ee;color:#0B4D3A;padding:6px;border:1px solid #ddd;">Mahina</th><th style="background:#e9f5ee;color:#0B4D3A;padding:6px;border:1px solid #ddd;">Haazri</th><th style="background:#e9f5ee;color:#0B4D3A;padding:6px;border:1px solid #ddd;">%</th></tr>
+        ${rows || '<tr><td colspan="3" style="padding:10px;text-align:center;border:1px solid #eee;">Abhi koi record nahi</td></tr>'}
+        <tr><td style="padding:6px;border:1px solid #eee;text-align:center;"><b>Total</b></td><td style="padding:6px;border:1px solid #eee;text-align:center;"><b>${totalPresent}/${totalDays}</b></td><td style="padding:6px;border:1px solid #eee;text-align:center;"><b>${overallPct}%</b></td></tr>
+      </table>
+      <div style="display:flex;justify-content:space-between;margin-top:22px;font-size:11px;color:#555;">
+        <div>______________<br>Tarekh</div>
+        <div>______________<br>Mohtamim Dastakhat</div>
+      </div>
+    </div>
+    <div style="padding:0 18px 20px;">
+      <button class="btn-print" style="width:100%;" onclick="window.print()">🖨 Report Card Print Karo</button>
+    </div>`;
+}
+
 async function loadCertificate(studentId) {
   document.getElementById("app").innerHTML = '<div class="loading">⏳ Loading...</div>';
   let { data: s } = await db.from('students').select('*').eq('id', studentId).single();
@@ -825,7 +938,8 @@ async function loadHifz() {
     <div style="padding:10px;">
       <button class="btn-cancel" onclick="loadHome()" style="width:auto;padding:8px 16px;">← Wapas</button>
     </div>
-    <div class="date-banner">📖 حفظ سبق — جمعہ</div>`;
+    <div class="date-banner">📖 حفظ سبق — جمعہ</div>
+    <button onclick="loadHifzLeaderboard()" style="display:block;width:auto;margin:0 10px 10px;background:linear-gradient(135deg,#BE1A60,#e0508a);color:#fff;border:none;padding:10px;border-radius:12px;font-weight:700;font-size:12.5px;text-align:center;cursor:pointer;">🏆 Leaderboard Dekho</button>`;
 
   if (!students || students.length === 0) {
     html += `<div class="card" style="text-align:center;color:#666;padding:30px;">Koi Quran/Hifz talib nahi hai.<br><small>Talaba list mein "Quran/Hifz Talib Banao" button se add karo.</small></div>`;
@@ -916,12 +1030,67 @@ async function toggleHifzHistory(studentId) {
 
 
 
+async function loadHifzLeaderboard() {
+  document.getElementById("app").innerHTML = '<div class="loading">⏳ Loading...</div>';
+  let { data: students } = await db.from('students').select('*').eq('is_quran_student', true);
+  let { data: items } = await db.from('syllabus_items').select('*').eq('type', 'hifz').order('order_index');
+  let ranked = (students || []).map(s => {
+    let prog = Math.min(s.hifz_progress || 0, items.length);
+    let surahTitle = items[prog] ? items[prog].title : '🎉 Mukammal';
+    return { ...s, prog, surahTitle };
+  }).sort((a, b) => b.prog - a.prog);
+
+  let medals = ['gold', 'silver', 'bronze'];
+  let medalColors = { gold: 'linear-gradient(160deg,#f3d27a,#c9972c)', silver: 'linear-gradient(160deg,#e3e3e3,#a8a8a8)', bronze: 'linear-gradient(160deg,#d8a06a,#a85f33)' };
+
+  let html = `
+    <div style="padding:10px;">
+      <button class="btn-cancel" onclick="loadHifz()" style="width:auto;padding:8px 16px;">← Wapas</button>
+    </div>
+    <div class="date-banner">🏆 حفظ — سب سے آگے طلبہ</div>
+    <div class="card">`;
+
+  if (ranked.length === 0) {
+    html += `<div style="text-align:center;color:#999;padding:20px;">Koi Quran/Hifz talib nahi hai.</div>`;
+  } else {
+    ranked.forEach((s, i) => {
+      let medalStyle = i < 3 ? medalColors[medals[i]] : '#eee9dc';
+      let medalColor = i < 3 ? '#fff' : '#888';
+      html += `<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px dotted #eee;">
+        <div style="width:30px;height:30px;border-radius:50%;background:${medalStyle};color:${medalColor};display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0;">${i+1}</div>
+        <div style="flex:1;">
+          <div style="font-size:13.5px;font-weight:600;">${s.name}</div>
+          <div style="font-size:10.5px;color:#999;">${s.prog} Surah complete</div>
+        </div>
+        <div style="text-align:left;font-size:11px;color:#1C8C6B;font-weight:600;">📖 ${s.surahTitle}</div>
+      </div>`;
+    });
+  }
+  html += `</div>`;
+  document.getElementById("app").innerHTML = html;
+}
+
+function saveFeeAmount() {
+  let val = document.getElementById('feeAmountInput').value;
+  if (!val || parseInt(val) <= 0) { showToast("⚠ Sahi amount daalo"); return; }
+  localStorage.setItem('maktab_fee_amount', val);
+  showToast("✅ Fee amount save ho gaya");
+}
+
+
 function loadSettings() {
+  let feeAmount = localStorage.getItem('maktab_fee_amount') || '';
   document.getElementById("app").innerHTML = `
     <div style="padding:10px;">
       <button class="btn-cancel" onclick="loadHome()" style="width:auto;padding:8px 16px;">← Wapas</button>
     </div>
     <div class="date-banner">⚙️ Settings</div>
+    <div class="card">
+      <h4 style="color:#0B4D3A;margin-bottom:8px;">💰 Mahana Fees Amount</h4>
+      <p style="font-size:12px;color:#888;margin-bottom:10px;">Har talib se mahane ki kitni fees lete ho (₹). Isse "Kul Collection" calculate hoga.</p>
+      <input type="number" id="feeAmountInput" class="input-field" placeholder="Jaise: 100" value="${feeAmount}" style="direction:ltr;text-align:center;">
+      <button class="btn-primary" onclick="saveFeeAmount()">💾 Save Karo</button>
+    </div>
     <div class="card">
       <h4 style="color:#0B4D3A;margin-bottom:8px;">💾 Data Backup</h4>
       <p style="font-size:12px;color:#888;margin-bottom:10px;">Talaba, haazri, aur fees ka data Excel (CSV) file mein save karo.</p>
@@ -1002,6 +1171,26 @@ function loadHaazri() {
     </div>`;
 }
 
+async function markAllPresent(batch) {
+  if (!confirm("Poori batch ke sab talaba ko Haazir mark karna chahte ho?")) return;
+  showToast("⏳ Sab haazir kiye ja rahe hain...");
+  let { data: students } = await db.from('students').select('*').eq('batch', batch);
+  let today = new Date().toISOString().slice(0, 10);
+  let { data: existingAtt } = await db.from('attendance').select('*').eq('date', today);
+  let existingMap = {};
+  if (existingAtt) existingAtt.forEach(a => existingMap[a.student_id] = a.id);
+
+  for (let s of students) {
+    if (existingMap[s.id]) {
+      await db.from('attendance').update({ status: 'present' }).eq('id', existingMap[s.id]);
+    } else {
+      await db.from('attendance').insert([{ student_id: s.id, date: today, status: 'present' }]);
+    }
+  }
+  showToast("✅ Sab Haazir ho gaye!");
+  loadBatchHaazri(batch);
+}
+
 async function loadBatchHaazri(batch) {
   document.getElementById("app").innerHTML = '<div class="loading">⏳ Loading...</div>';
   currentHaazriBatch = batch;
@@ -1023,6 +1212,7 @@ async function loadBatchHaazri(batch) {
       <button class="btn-cancel" onclick="loadHaazri()" style="width:auto;padding:8px 16px;">← Wapas</button>
     </div>
     <div class="date-banner">📅 ${today} - ${batch}</div>
+    <button onclick="markAllPresent('${batch}')" style="display:block;width:auto;margin:8px 10px;background:linear-gradient(135deg,#1C8C6B,#0B4D3A);color:#fff;border:none;padding:11px;border-radius:12px;font-weight:700;font-size:13px;text-align:center;cursor:pointer;">⚡ Sab Ko Haazir Karo (${students.length})</button>
     <div id="haazri-counter" style="position:sticky;top:0;z-index:10;background:#fff8e1;border:2px solid #ffc107;border-radius:10px;margin:8px 10px;padding:10px;text-align:center;font-weight:bold;font-size:13px;">
       ✅ Haazir: <span id="cnt-present">${presentCount}</span> &nbsp;|&nbsp; ❌ Ghaib: <span id="cnt-absent">${absentCount}</span> &nbsp;|&nbsp; 👥 Total: <span id="cnt-total">${students.length}</span><br>
       <span style="color:#1C6E89;">👦 Ladke: ${ladkeCount}</span> &nbsp;|&nbsp; <span style="color:#BE1A60;">👧 Ladkiyan: ${ladkiyanCount}</span>
@@ -1147,7 +1337,35 @@ async function loadFees() {
   let feeMap = {};
   if (fees) fees.forEach(f => { if(!feeMap[f.student_id]) feeMap[f.student_id]={}; feeMap[f.student_id][f.month]=f.paid; });
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  let html = `<div class="date-banner">💰 Fees ${year}</div>`;
+  let feeAmount = parseInt(localStorage.getItem('maktab_fee_amount')) || 0;
+  let totalPaidMonths = fees ? fees.filter(f => f.paid).length : 0;
+  let totalCollection = totalPaidMonths * feeAmount;
+
+  let studentPaidCounts = students.map(s => {
+    let paidCount = months.filter((m,i) => feeMap[s.id] && feeMap[s.id][i+1]).length;
+    return { ...s, paidCount, baki: 12 - paidCount };
+  });
+  let defaulters = studentPaidCounts.filter(s => s.baki > 0).sort((a,b) => b.baki - a.baki).slice(0, 8);
+
+  let html = `<div class="date-banner">💰 Fees ${year}</div>
+    <div style="margin:10px 18px;background:linear-gradient(135deg,#0B4D3A,#117860);color:#fff;border-radius:20px;padding:20px;text-align:center;">
+      <div style="font-size:28px;font-weight:800;font-family:'JetBrains Mono';">${feeAmount > 0 ? '₹ ' + totalCollection.toLocaleString('en-IN') : totalPaidMonths + ' mahine'}</div>
+      <div style="font-size:11.5px;opacity:0.85;margin-top:4px;">Is saal tak jama hui ${feeAmount > 0 ? 'rakam' : 'kul fees ginti'}</div>
+      ${feeAmount === 0 ? '<div style="font-size:10.5px;margin-top:6px;opacity:0.8;">⚙️ Settings mein fee amount set karo ₹ dikhane ke liye</div>' : ''}
+    </div>`;
+
+  if (defaulters.length > 0) {
+    html += `<div class="card">
+      <h4 style="color:#D9614C;margin-bottom:10px;font-size:13px;">⚠️ Sabse Zyada Baki (Defaulters)</h4>`;
+    defaulters.forEach(s => {
+      html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px dotted #eee;">
+        <b style="font-size:13px;">${s.name}</b>
+        <span style="background:#fdf1ef;color:#D9614C;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700;">${s.baki} mahine baki</span>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+
   if (!students || students.length === 0) {
     html += '<div class="card" style="text-align:center;color:#666;">Koi talib nahi.</div>';
     document.getElementById("app").innerHTML = html;
