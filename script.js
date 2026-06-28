@@ -1204,6 +1204,31 @@ async function markAllPresent(batch) {
   loadBatchHaazri(batch);
 }
 
+async function toggleFeeFromHaazri(studentId, btn) {
+  let year = new Date().getFullYear();
+  let month = new Date().getMonth() + 1;
+  let newStatus = !btn.innerText.includes('Mil Gayi');
+  let today = new Date().toISOString().slice(0,10);
+  let { data: existing } = await db.from('fees').select('*').eq('student_id', studentId).eq('month', month).eq('year', year);
+  if (existing && existing.length > 0) {
+    await db.from('fees').update({ paid: newStatus, paid_date: newStatus ? today : null }).eq('id', existing[0].id);
+  } else {
+    await db.from('fees').insert([{ student_id: studentId, month, year, paid: newStatus, paid_date: newStatus ? today : null }]);
+  }
+  if (newStatus) {
+    btn.innerText = '💰 Fees Mil Gayi';
+    btn.style.border = '2px solid #1C8C6B';
+    btn.style.background = '#e9f5ee';
+    btn.style.color = '#0B4D3A';
+  } else {
+    btn.innerText = '💰 Fees Lena Baki';
+    btn.style.border = '2px solid #ccc';
+    btn.style.background = '#f5f5f0';
+    btn.style.color = '#999';
+  }
+  showToast(newStatus ? "✅ Fees mark ho gayi" : "Fees wapas unpaid ki gayi");
+}
+
 async function loadBatchHaazri(batch) {
   document.getElementById("app").innerHTML = '<div class="loading">⏳ Loading...</div>';
   currentHaazriBatch = batch;
@@ -1212,6 +1237,11 @@ async function loadBatchHaazri(batch) {
   let { data: todayAtt } = await db.from('attendance').select('*').eq('date', today);
   let attMap = {};
   if (todayAtt) todayAtt.forEach(a => attMap[a.student_id] = a.status);
+  let curYear = new Date().getFullYear();
+  let curMonth = new Date().getMonth() + 1;
+  let { data: curFees } = await db.from('fees').select('*').eq('year', curYear).eq('month', curMonth);
+  let feeStatusMap = {};
+  if (curFees) curFees.forEach(f => feeStatusMap[f.student_id] = f.paid);
   let presentCount = 0, absentCount = 0;
   let ladkeCount = 0, ladkiyanCount = 0;
   students.forEach(s => {
@@ -1237,6 +1267,7 @@ async function loadBatchHaazri(batch) {
   }
   students.forEach(s => {
     let status = attMap[s.id] || '';
+    let feePaid = !!feeStatusMap[s.id];
     html += `
       <div class="card" id="hcard-${s.id}" style="margin:5px 10px;padding:12px;">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
@@ -1250,12 +1281,15 @@ async function loadBatchHaazri(batch) {
             <button class="btn-delete" onclick="deleteStudentFromHaazri(${s.id},'${s.name}')" style="padding:6px 10px;font-size:14px;">🗑</button>
           </div>
         </div>
-        <select onchange="quickBatchChange(${s.id}, this.value, this)" class="input-field" style="margin-top:7px;font-size:11px;padding:5px 8px;color:#888;">
-          <option value="">🔄 Batch Badlo</option>
-          <option value="Pehli (7-8 AM)" ${s.batch==='Pehli (7-8 AM)'?'selected':''}>🌅 Pehli (7-8 AM)</option>
-          <option value="Doosri (2-3 PM)" ${s.batch==='Doosri (2-3 PM)'?'selected':''}>☀️ Doosri (2-3 PM)</option>
-          <option value="Teesri (Maghrib-Isha)" ${s.batch==='Teesri (Maghrib-Isha)'?'selected':''}>🌙 Teesri (Maghrib-Isha)</option>
-        </select>
+        <div style="display:flex;gap:8px;margin-top:7px;align-items:center;">
+          <select onchange="quickBatchChange(${s.id}, this.value, this)" class="input-field" style="margin:0;flex:1;font-size:11px;padding:5px 8px;color:#888;">
+            <option value="">🔄 Batch Badlo</option>
+            <option value="Pehli (7-8 AM)" ${s.batch==='Pehli (7-8 AM)'?'selected':''}>🌅 Pehli (7-8 AM)</option>
+            <option value="Doosri (2-3 PM)" ${s.batch==='Doosri (2-3 PM)'?'selected':''}>☀️ Doosri (2-3 PM)</option>
+            <option value="Teesri (Maghrib-Isha)" ${s.batch==='Teesri (Maghrib-Isha)'?'selected':''}>🌙 Teesri (Maghrib-Isha)</option>
+          </select>
+          <button id="feebtn-${s.id}" onclick="toggleFeeFromHaazri(${s.id},this)" style="white-space:nowrap;padding:6px 12px;border-radius:8px;border:2px solid ${feePaid?'#1C8C6B':'#ccc'};background:${feePaid?'#e9f5ee':'#f5f5f0'};color:${feePaid?'#0B4D3A':'#999'};font-size:11px;font-weight:600;cursor:pointer;">💰 ${feePaid?'Fees Mil Gayi':'Fees Lena Baki'}</button>
+        </div>
       </div>`;
   });
   html += `
@@ -1346,13 +1380,21 @@ async function loadFees() {
   document.getElementById("app").innerHTML = '<div class="loading">⏳ Loading...</div>';
   let { data: students } = await db.from('students').select('*').order('name');
   let year = new Date().getFullYear();
-  let { data: fees } = await db.from('fees').select('*').eq('year', year);
+  let { data: allFees } = await db.from('fees').select('*');
+  let fees = (allFees || []).filter(f => f.year === year);
   let feeMap = {};
   if (fees) fees.forEach(f => { if(!feeMap[f.student_id]) feeMap[f.student_id]={}; feeMap[f.student_id][f.month]=f.paid; });
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   let feeAmount = parseInt(localStorage.getItem('maktab_fee_amount')) || 0;
   let totalPaidMonths = fees ? fees.filter(f => f.paid).length : 0;
   let totalCollection = totalPaidMonths * feeAmount;
+
+  // Asal tareekh (paid_date) ke hisaab se is calendar mahine ki collection
+  let now = new Date();
+  let curMonthStr = now.toISOString().slice(0,7); // YYYY-MM
+  let thisMonthCount = (allFees || []).filter(f => f.paid && f.paid_date && f.paid_date.slice(0,7) === curMonthStr).length;
+  let thisMonthCollection = thisMonthCount * feeAmount;
+  let monthNameUrdu = now.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
 
   let studentPaidCounts = students.map(s => {
     let paidCount = months.filter((m,i) => feeMap[s.id] && feeMap[s.id][i+1]).length;
@@ -1362,9 +1404,13 @@ async function loadFees() {
 
   let html = `<div class="date-banner">💰 Fees ${year}</div>
     <div style="margin:10px 18px;background:linear-gradient(135deg,#0B4D3A,#117860);color:#fff;border-radius:20px;padding:20px;text-align:center;">
-      <div style="font-size:28px;font-weight:800;font-family:'JetBrains Mono';">${feeAmount > 0 ? '₹ ' + totalCollection.toLocaleString('en-IN') : totalPaidMonths + ' mahine'}</div>
-      <div style="font-size:11.5px;opacity:0.85;margin-top:4px;">Is saal tak jama hui ${feeAmount > 0 ? 'rakam' : 'kul fees ginti'}</div>
+      <div style="font-size:11px;opacity:0.8;margin-bottom:4px;">📅 ${monthNameUrdu} ki Collection</div>
+      <div style="font-size:28px;font-weight:800;font-family:'JetBrains Mono';">${feeAmount > 0 ? '₹ ' + thisMonthCollection.toLocaleString('en-IN') : thisMonthCount + ' mahine'}</div>
+      <div style="font-size:10.5px;opacity:0.75;margin-top:6px;border-top:1px solid rgba(255,255,255,0.2);padding-top:6px;">Saal bhar ka total: ${feeAmount > 0 ? '₹ ' + totalCollection.toLocaleString('en-IN') : totalPaidMonths + ' mahine'}</div>
       ${feeAmount === 0 ? '<div style="font-size:10.5px;margin-top:6px;opacity:0.8;">⚙️ Settings mein fee amount set karo ₹ dikhane ke liye</div>' : ''}
+    </div>
+    <div style="padding:0 18px;">
+      <button onclick="loadFeeMonthReport()" style="width:100%;background:#fff;color:#0B4D3A;border:2px solid #0B4D3A;padding:10px;border-radius:12px;font-weight:700;font-size:12.5px;">📅 Mahana Committee Report Dekho</button>
     </div>`;
 
   if (defaulters.length > 0) {
@@ -1408,6 +1454,78 @@ async function loadFees() {
   document.getElementById("app").innerHTML = html;
 }
 
+// ===== MONTHLY COMMITTEE FEE REPORT (based on actual paid_date) =====
+async function loadFeeMonthReport(selectedMonth) {
+  document.getElementById("app").innerHTML = '<div class="loading">⏳ Loading...</div>';
+  let now = new Date();
+  if (!selectedMonth) selectedMonth = now.toISOString().slice(0,7); // YYYY-MM
+  let feeAmount = parseInt(localStorage.getItem('maktab_fee_amount')) || 0;
+  let { data: allFees } = await db.from('fees').select('*');
+  let { data: students } = await db.from('students').select('*');
+  let studentMap = {};
+  (students || []).forEach(s => studentMap[s.id] = s);
+
+  let monthFees = (allFees || []).filter(f => f.paid && f.paid_date && f.paid_date.slice(0,7) === selectedMonth);
+  let total = monthFees.length * feeAmount;
+
+  // Har talib ke liye kitne mahine us din tick hue (group by student)
+  let byStudent = {};
+  monthFees.forEach(f => {
+    if (!byStudent[f.student_id]) byStudent[f.student_id] = [];
+    byStudent[f.student_id].push(f);
+  });
+
+  let [y, m] = selectedMonth.split('-');
+  let monthLabel = new Date(y, m-1, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+
+  // Month picker options - last 12 months
+  let options = '';
+  for (let i = 0; i < 12; i++) {
+    let d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    let val = d.toISOString().slice(0,7);
+    let label = d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+    options += `<option value="${val}" ${val===selectedMonth?'selected':''}>${label}</option>`;
+  }
+
+  let html = `
+    <div style="padding:10px;">
+      <button class="btn-cancel" onclick="loadFees()" style="width:auto;padding:8px 16px;">← Wapas</button>
+    </div>
+    <div class="date-banner">📅 Committee Report</div>
+    <div style="padding:0 18px;">
+      <select onchange="loadFeeMonthReport(this.value)" class="input-field" style="direction:ltr;">
+        ${options}
+      </select>
+    </div>
+    <div style="margin:10px 18px;background:linear-gradient(135deg,#0B4D3A,#117860);color:#fff;border-radius:20px;padding:20px;text-align:center;">
+      <div style="font-size:11px;opacity:0.8;">📅 ${monthLabel}</div>
+      <div style="font-size:28px;font-weight:800;font-family:'JetBrains Mono';">${feeAmount > 0 ? '₹ ' + total.toLocaleString('en-IN') : monthFees.length + ' mahine'}</div>
+      <div style="font-size:10.5px;opacity:0.8;margin-top:4px;">${monthFees.length} fee-tick × ₹${feeAmount} = Total</div>
+    </div>
+    <div class="card">
+      <h4 style="color:#0B4D3A;margin-bottom:10px;font-size:13px;">📋 Kis Ne Kab Diya — Tafseel</h4>`;
+
+  let studentIds = Object.keys(byStudent);
+  if (studentIds.length === 0) {
+    html += `<div style="text-align:center;color:#999;padding:14px;">Is mahine koi fees tick nahi hui.</div>`;
+  } else {
+    studentIds.forEach(sid => {
+      let s = studentMap[sid];
+      let entries = byStudent[sid];
+      let name = s ? s.name : 'Unknown';
+      html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px dotted #eee;">
+        <b style="font-size:13px;">${name}</b>
+        <span style="background:#e9f5ee;color:#0B4D3A;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700;">${entries.length} mahine ${feeAmount>0 ? '· ₹'+(entries.length*feeAmount) : ''}</span>
+      </div>`;
+    });
+  }
+  html += `</div>
+    <div style="padding:0 18px 20px;">
+      <button class="btn-print" style="width:100%;" onclick="window.print()">🖨 Report Print Karo</button>
+    </div>`;
+  document.getElementById("app").innerHTML = html;
+}
+
 function sendFeeReminder(studentId, name, phone) {
   let cleanPhone = phone.replace(/\D/g,'');
   if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
@@ -1418,11 +1536,12 @@ function sendFeeReminder(studentId, name, phone) {
 async function toggleFee(studentId, month, btn) {
   let year = new Date().getFullYear();
   let newStatus = !btn.classList.contains('paid');
+  let today = new Date().toISOString().slice(0,10);
   let { data: existing } = await db.from('fees').select('*').eq('student_id', studentId).eq('month', month).eq('year', year);
   if (existing && existing.length > 0) {
-    await db.from('fees').update({ paid: newStatus }).eq('id', existing[0].id);
+    await db.from('fees').update({ paid: newStatus, paid_date: newStatus ? today : null }).eq('id', existing[0].id);
   } else {
-    await db.from('fees').insert([{ student_id: studentId, month, year, paid: newStatus }]);
+    await db.from('fees').insert([{ student_id: studentId, month, year, paid: newStatus, paid_date: newStatus ? today : null }]);
   }
   btn.classList.toggle('paid', newStatus);
   btn.classList.toggle('unpaid', !newStatus);
