@@ -148,6 +148,17 @@ async function loadHome() {
   let present = att ? att.filter(a => a.status === 'present').length : 0;
   let percent = total > 0 ? Math.round((present / total) * 100) : 0;
 
+  let lastBackup = localStorage.getItem('maktab_last_backup');
+  let daysSinceBackup = lastBackup ? Math.floor((new Date() - new Date(lastBackup)) / 86400000) : 9999;
+  let backupReminderHtml = daysSinceBackup >= 30 ? `
+    <div onclick="loadSettings()" style="margin:12px 18px 0;background:linear-gradient(135deg,#f0b35e,#c97f1f);color:#fff;border-radius:16px;padding:13px 16px;display:flex;align-items:center;gap:10px;cursor:pointer;">
+      <span style="font-size:20px;">💾</span>
+      <div style="flex:1;">
+        <b style="font-size:12.5px;">${lastBackup ? '30+ din se backup nahi liya!' : 'Abhi tak backup nahi liya!'}</b>
+        <div style="font-size:10.5px;opacity:0.9;">Tap karo, Settings mein backup le lo →</div>
+      </div>
+    </div>` : '';
+
   document.getElementById("app").innerHTML = chuttiBanner() + `
     <div class="float-bar">
       <div class="float-stat">
@@ -163,6 +174,7 @@ async function loadHome() {
         <div class="lbl urdu">بیچز</div>
       </div>
     </div>
+    ${backupReminderHtml}
     <div style="margin:12px 18px 0;background:#fff;border-radius:16px;padding:11px 16px;box-shadow:0 6px 16px rgba(11,77,58,0.07);display:flex;align-items:center;gap:8px;">
       <span style="font-size:15px;">🔍</span>
       <input type="text" id="homeSearchInput" placeholder="Talib ka naam likho..." oninput="searchHomeStudents(this.value)" style="border:none;outline:none;flex:1;font-size:14px;direction:rtl;font-family:'Outfit',sans-serif;">
@@ -1127,6 +1139,7 @@ async function backupData() {
   setTimeout(() => {
     let feeRows = [['Student ID','Month','Year','Paid'], ...(fees||[]).map(f => [f.student_id,f.month,f.year,f.paid])];
     downloadCSV('fees.csv', toCSV(feeRows));
+    localStorage.setItem('maktab_last_backup', new Date().toISOString().slice(0,10));
     showToast("✅ Backup ho gaya! 3 files download hui");
   }, 800);
 }
