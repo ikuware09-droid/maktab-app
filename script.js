@@ -640,6 +640,18 @@ async function deleteStudent(id, name) {
 }
 
 // ===== STUDENT PROFILE =====
+async function editFeeDate(studentId, month, year, currentDate) {
+  let newDate = prompt("Sahi tareekh daalo (YYYY-MM-DD):", currentDate || new Date().toISOString().slice(0,10));
+  if (!newDate) return;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(newDate)) { showToast("⚠ Galat format, YYYY-MM-DD likho"); return; }
+  let { data: existing } = await db.from('fees').select('*').eq('student_id', studentId).eq('month', month).eq('year', year);
+  if (existing && existing.length > 0) {
+    await db.from('fees').update({ paid_date: newDate }).eq('id', existing[0].id);
+    showToast("✅ Tareekh update ho gayi");
+    loadProfile(studentId);
+  }
+}
+
 async function loadProfile(studentId) {
   document.getElementById("app").innerHTML = '<div class="loading">⏳ Loading...</div>';
   let { data: s } = await db.from('students').select('*').eq('id', studentId).single();
@@ -668,8 +680,12 @@ async function loadProfile(studentId) {
 
   let feesHtml = '';
   months.forEach((m, i) => {
-    let paid = fees && fees.find(f => f.month === i+1 && f.paid);
-    feesHtml += `<span class="fee-month ${paid ? 'paid' : 'unpaid'}">${m}</span>`;
+    let feeRec = fees && fees.find(f => f.month === i+1 && f.paid);
+    if (feeRec) {
+      feesHtml += `<span class="fee-month paid" onclick="editFeeDate(${studentId},${i+1},${year},'${feeRec.paid_date || ''}')" style="cursor:pointer;" title="Tareekh badlo">${m} ${feeRec.paid_date ? '📅' : ''}</span>`;
+    } else {
+      feesHtml += `<span class="fee-month unpaid">${m}</span>`;
+    }
   });
 
   let attHtml = '';
@@ -722,6 +738,7 @@ async function loadProfile(studentId) {
         </div>
       </div>
       <h4 style="color:#0B4D3A;margin:15px 0 8px;">💰 Fees ${year}</h4>
+      <p style="font-size:10.5px;color:#999;margin-bottom:6px;">Tareekh badalne ke liye kisi bhi 📅 wale mahine par tap karo</p>
       <div class="fee-months-row">${feesHtml}</div>
       <h4 style="color:#0B4D3A;margin:15px 0 8px;">📅 Haazri (Aakhri 10 din)</h4>
       ${attHtml}
