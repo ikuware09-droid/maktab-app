@@ -679,10 +679,15 @@ async function loadProfile(studentId) {
   let feesPaid = fees ? fees.filter(f => f.paid).length : 0;
 
   let feesHtml = '';
+  let feeDateRows = '';
   months.forEach((m, i) => {
     let feeRec = fees && fees.find(f => f.month === i+1 && f.paid);
     if (feeRec) {
-      feesHtml += `<span class="fee-month paid" onclick="editFeeDate(${studentId},${i+1},${year},'${feeRec.paid_date || ''}')" style="cursor:pointer;" title="Tareekh badlo">${m} ${feeRec.paid_date ? '📅' : ''}</span>`;
+      feesHtml += `<span class="fee-month paid">${m}</span>`;
+      feeDateRows += `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px dotted #eee;">
+        <span style="font-size:12.5px;">${m} — <span style="color:#888;">${feeRec.paid_date || 'tareekh nahi hai'}</span></span>
+        <button onclick="editFeeDate(${studentId},${i+1},${year},'${feeRec.paid_date || ''}')" style="background:#fbf3e0;color:#B8862C;border:1px solid #B8862C;padding:5px 12px;border-radius:8px;font-size:11px;font-weight:600;">✏️ Edit Karo</button>
+      </div>`;
     } else {
       feesHtml += `<span class="fee-month unpaid">${m}</span>`;
     }
@@ -738,8 +743,10 @@ async function loadProfile(studentId) {
         </div>
       </div>
       <h4 style="color:#0B4D3A;margin:15px 0 8px;">💰 Fees ${year}</h4>
-      <p style="font-size:10.5px;color:#999;margin-bottom:6px;">Tareekh badalne ke liye kisi bhi 📅 wale mahine par tap karo</p>
       <div class="fee-months-row">${feesHtml}</div>
+      ${feeDateRows ? `
+      <h4 style="color:#0B4D3A;margin:15px 0 8px;">📅 Fees Ki Tareekh (galat ho to theek karo)</h4>
+      <div style="background:#fbfaf5;border-radius:12px;padding:8px 12px;">${feeDateRows}</div>` : ''}
       <h4 style="color:#0B4D3A;margin:15px 0 8px;">📅 Haazri (Aakhri 10 din)</h4>
       ${attHtml}
     </div>
