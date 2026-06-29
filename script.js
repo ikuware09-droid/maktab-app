@@ -1114,6 +1114,84 @@ function saveFeeAmount() {
 }
 
 
+// ===== IMAM PERSONAL HAZRI (PRIVATE) =====
+async function loadImamLog() {
+  document.getElementById("app").innerHTML = '<div class="loading">⏳ Loading...</div>';
+  let today = new Date().toISOString().slice(0, 10);
+  let { data: logs } = await db.from('imam_log').select('*').order('date', { ascending: false }).limit(30);
+  let todayLog = logs ? logs.find(l => l.date === today) : null;
+  let azaan = todayLog ? todayLog.azaan : false;
+  let namaz = todayLog ? todayLog.namaz : false;
+  let note = todayLog ? (todayLog.note || '') : '';
+
+  let html = `
+    <div style="padding:10px;">
+      <button class="btn-cancel" onclick="loadSettings()" style="width:auto;padding:8px 16px;">← Wapas</button>
+    </div>
+    <div class="date-banner">🕌 Meri Hazri — ${today}</div>
+    <div class="card">
+      <h4 style="color:#0B4D3A;margin-bottom:10px;">Aaj Ka Record</h4>
+      <div style="display:flex;gap:10px;margin-bottom:10px;">
+        <button id="azaanBtn" onclick="toggleImamField('azaan')" style="flex:1;padding:14px;border-radius:12px;border:2px solid ${azaan?'#1C8C6B':'#ccc'};background:${azaan?'#e9f5ee':'#f5f5f0'};color:${azaan?'#0B4D3A':'#999'};font-weight:700;font-size:13px;">📢 Azaan ${azaan?'✅':'❌'}</button>
+        <button id="namazBtn" onclick="toggleImamField('namaz')" style="flex:1;padding:14px;border-radius:12px;border:2px solid ${namaz?'#1C8C6B':'#ccc'};background:${namaz?'#e9f5ee':'#f5f5f0'};color:${namaz?'#0B4D3A':'#999'};font-weight:700;font-size:13px;">🕌 Namaz ${namaz?'✅':'❌'}</button>
+      </div>
+      <label style="font-size:11px;color:#888;">Note (agar chutti ki wajah likhni ho)</label>
+      <textarea id="imamNote" class="input-field" style="min-height:60px;" placeholder="Jaise: Tabiyat theek nahi thi...">${note}</textarea>
+      <button class="btn-primary" onclick="saveImamNote()">💾 Note Save Karo</button>
+    </div>
+    <div class="card">
+      <h4 style="color:#0B4D3A;margin-bottom:10px;">📜 Pichle Din (30 din)</h4>`;
+
+  if (!logs || logs.length === 0) {
+    html += `<div style="text-align:center;color:#999;padding:14px;">Abhi koi record nahi.</div>`;
+  } else {
+    logs.forEach(l => {
+      let bothOk = l.azaan && l.namaz;
+      let bothMissed = !l.azaan && !l.namaz;
+      let color = bothOk ? '#1C8C6B' : bothMissed ? '#D9614C' : '#B8862C';
+      let statusText = bothOk ? '✅ Mukammal' : bothMissed ? '❌ Dono Miss' : '⚠️ Adha';
+      html += `<div style="padding:8px 0;border-bottom:1px dotted #eee;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:12.5px;direction:ltr;">${l.date}</span>
+          <span style="color:${color};font-weight:700;font-size:11.5px;">${statusText}</span>
+        </div>
+        ${l.note ? `<div style="font-size:11px;color:#888;margin-top:3px;">📝 ${l.note}</div>` : ''}
+      </div>`;
+    });
+  }
+  html += `</div>`;
+  document.getElementById("app").innerHTML = html;
+}
+
+async function toggleImamField(field) {
+  let today = new Date().toISOString().slice(0, 10);
+  let { data: existing } = await db.from('imam_log').select('*').eq('date', today);
+  let newVal;
+  if (existing && existing.length > 0) {
+    newVal = !existing[0][field];
+    await db.from('imam_log').update({ [field]: newVal }).eq('id', existing[0].id);
+  } else {
+    newVal = true;
+    let insertObj = { date: today, azaan: false, namaz: false };
+    insertObj[field] = true;
+    await db.from('imam_log').insert([insertObj]);
+  }
+  showToast(newVal ? "✅ Mark ho gaya" : "Wapas unmark kar diya");
+  loadImamLog();
+}
+
+async function saveImamNote() {
+  let today = new Date().toISOString().slice(0, 10);
+  let note = document.getElementById('imamNote').value.trim();
+  let { data: existing } = await db.from('imam_log').select('*').eq('date', today);
+  if (existing && existing.length > 0) {
+    await db.from('imam_log').update({ note }).eq('id', existing[0].id);
+  } else {
+    await db.from('imam_log').insert([{ date: today, azaan: false, namaz: false, note }]);
+  }
+  showToast("✅ Note save ho gaya");
+}
+
 function loadSettings() {
   let feeAmount = localStorage.getItem('maktab_fee_amount') || '';
   document.getElementById("app").innerHTML = `
@@ -1131,6 +1209,11 @@ function loadSettings() {
       <h4 style="color:#0B4D3A;margin-bottom:8px;">💾 Data Backup</h4>
       <p style="font-size:12px;color:#888;margin-bottom:10px;">Talaba, haazri, aur fees ka data Excel (CSV) file mein save karo.</p>
       <button class="btn-primary" style="background:linear-gradient(135deg,#1C6E89,#3aa0bd);" onclick="backupData()">📥 Backup Download Karo</button>
+    </div>
+    <div class="card">
+      <h4 style="color:#0B4D3A;margin-bottom:8px;">👳 Meri Hazri (Imam — Private)</h4>
+      <p style="font-size:12px;color:#888;margin-bottom:10px;">Apni Azaan aur Namaz ki roz ki hazri yahan rakho.</p>
+      <button class="btn-primary" style="background:linear-gradient(135deg,#7A4B8C,#9a6bab);" onclick="loadImamLog()">🕌 Meri Hazri Kholo</button>
     </div>`;
 }
 
