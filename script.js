@@ -1115,14 +1115,30 @@ function saveFeeAmount() {
 
 
 // ===== IMAM PERSONAL HAZRI (PRIVATE) =====
+const prayers = [
+  { key: 'fajr', label: 'فجر' },
+  { key: 'zuhr', label: 'ظہر' },
+  { key: 'asr', label: 'عصر' },
+  { key: 'maghrib', label: 'مغرب' },
+  { key: 'isha', label: 'عشاء' },
+];
+
 async function loadImamLog() {
   document.getElementById("app").innerHTML = '<div class="loading">⏳ Loading...</div>';
   let today = new Date().toISOString().slice(0, 10);
   let { data: logs } = await db.from('imam_log').select('*').order('date', { ascending: false }).limit(30);
   let todayLog = logs ? logs.find(l => l.date === today) : null;
-  let azaan = todayLog ? todayLog.azaan : false;
-  let namaz = todayLog ? todayLog.namaz : false;
   let note = todayLog ? (todayLog.note || '') : '';
+
+  let prayerRows = prayers.map(p => {
+    let azaan = todayLog ? todayLog[p.key + '_azaan'] : false;
+    let namaz = todayLog ? todayLog[p.key + '_namaz'] : false;
+    return `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px dotted #eee;">
+      <b class="urdu" style="width:50px;font-size:14px;">${p.label}</b>
+      <button onclick="toggleImamField('${p.key}_azaan')" style="flex:1;padding:9px;border-radius:9px;border:2px solid ${azaan?'#1C8C6B':'#ccc'};background:${azaan?'#e9f5ee':'#f5f5f0'};color:${azaan?'#0B4D3A':'#999'};font-weight:600;font-size:11.5px;">📢 Azaan ${azaan?'✅':'❌'}</button>
+      <button onclick="toggleImamField('${p.key}_namaz')" style="flex:1;padding:9px;border-radius:9px;border:2px solid ${namaz?'#1C8C6B':'#ccc'};background:${namaz?'#e9f5ee':'#f5f5f0'};color:${namaz?'#0B4D3A':'#999'};font-weight:600;font-size:11.5px;">🕌 Namaz ${namaz?'✅':'❌'}</button>
+    </div>`;
+  }).join('');
 
   let html = `
     <div style="padding:10px;">
@@ -1130,12 +1146,9 @@ async function loadImamLog() {
     </div>
     <div class="date-banner">🕌 Meri Hazri — ${today}</div>
     <div class="card">
-      <h4 style="color:#0B4D3A;margin-bottom:10px;">Aaj Ka Record</h4>
-      <div style="display:flex;gap:10px;margin-bottom:10px;">
-        <button id="azaanBtn" onclick="toggleImamField('azaan')" style="flex:1;padding:14px;border-radius:12px;border:2px solid ${azaan?'#1C8C6B':'#ccc'};background:${azaan?'#e9f5ee':'#f5f5f0'};color:${azaan?'#0B4D3A':'#999'};font-weight:700;font-size:13px;">📢 Azaan ${azaan?'✅':'❌'}</button>
-        <button id="namazBtn" onclick="toggleImamField('namaz')" style="flex:1;padding:14px;border-radius:12px;border:2px solid ${namaz?'#1C8C6B':'#ccc'};background:${namaz?'#e9f5ee':'#f5f5f0'};color:${namaz?'#0B4D3A':'#999'};font-weight:700;font-size:13px;">🕌 Namaz ${namaz?'✅':'❌'}</button>
-      </div>
-      <label style="font-size:11px;color:#888;">Note (agar chutti ki wajah likhni ho)</label>
+      <h4 style="color:#0B4D3A;margin-bottom:8px;">Aaj Ka Record (har waqt alag)</h4>
+      ${prayerRows}
+      <label style="font-size:11px;color:#888;margin-top:10px;display:block;">Note (agar chutti ki wajah likhni ho)</label>
       <textarea id="imamNote" class="input-field" style="min-height:60px;" placeholder="Jaise: Tabiyat theek nahi thi...">${note}</textarea>
       <button class="btn-primary" onclick="saveImamNote()">💾 Note Save Karo</button>
     </div>
@@ -1146,15 +1159,18 @@ async function loadImamLog() {
     html += `<div style="text-align:center;color:#999;padding:14px;">Abhi koi record nahi.</div>`;
   } else {
     logs.forEach(l => {
-      let bothOk = l.azaan && l.namaz;
-      let bothMissed = !l.azaan && !l.namaz;
-      let color = bothOk ? '#1C8C6B' : bothMissed ? '#D9614C' : '#B8862C';
-      let statusText = bothOk ? '✅ Mukammal' : bothMissed ? '❌ Dono Miss' : '⚠️ Adha';
+      let totalDone = 0, totalMissed = [];
+      prayers.forEach(p => {
+        if (l[p.key+'_azaan']) totalDone++; else totalMissed.push(p.label+' Azaan');
+        if (l[p.key+'_namaz']) totalDone++; else totalMissed.push(p.label+' Namaz');
+      });
+      let color = totalDone === 10 ? '#1C8C6B' : totalDone === 0 ? '#D9614C' : '#B8862C';
       html += `<div style="padding:8px 0;border-bottom:1px dotted #eee;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:12.5px;direction:ltr;">${l.date}</span>
-          <span style="color:${color};font-weight:700;font-size:11.5px;">${statusText}</span>
+          <span style="color:${color};font-weight:700;font-size:11.5px;">${totalDone}/10</span>
         </div>
+        ${totalDone < 10 ? `<div class="urdu" style="font-size:10.5px;color:#D9614C;margin-top:3px;">Miss: ${totalMissed.join('، ')}</div>` : ''}
         ${l.note ? `<div style="font-size:11px;color:#888;margin-top:3px;">📝 ${l.note}</div>` : ''}
       </div>`;
     });
@@ -1172,7 +1188,7 @@ async function toggleImamField(field) {
     await db.from('imam_log').update({ [field]: newVal }).eq('id', existing[0].id);
   } else {
     newVal = true;
-    let insertObj = { date: today, azaan: false, namaz: false };
+    let insertObj = { date: today };
     insertObj[field] = true;
     await db.from('imam_log').insert([insertObj]);
   }
@@ -1187,7 +1203,7 @@ async function saveImamNote() {
   if (existing && existing.length > 0) {
     await db.from('imam_log').update({ note }).eq('id', existing[0].id);
   } else {
-    await db.from('imam_log').insert([{ date: today, azaan: false, namaz: false, note }]);
+    await db.from('imam_log').insert([{ date: today, note }]);
   }
   showToast("✅ Note save ho gaya");
 }
