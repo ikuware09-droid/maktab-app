@@ -1208,6 +1208,12 @@ async function saveImamNote() {
   showToast("✅ Note save ho gaya");
 }
 
+function changePinFlow() {
+  localStorage.removeItem('maktab_pin');
+  firstPin = ''; newPinInput = '';
+  showSetPin();
+}
+
 function loadSettings() {
   let feeAmount = localStorage.getItem('maktab_fee_amount') || '';
   document.getElementById("app").innerHTML = `
@@ -1220,6 +1226,11 @@ function loadSettings() {
       <p style="font-size:12px;color:#888;margin-bottom:10px;">Har talib se mahane ki kitni fees lete ho (₹). Isse "Kul Collection" calculate hoga.</p>
       <input type="number" id="feeAmountInput" class="input-field" placeholder="Jaise: 100" value="${feeAmount}" style="direction:ltr;text-align:center;">
       <button class="btn-primary" onclick="saveFeeAmount()">💾 Save Karo</button>
+    </div>
+    <div class="card">
+      <h4 style="color:#0B4D3A;margin-bottom:8px;">🔐 PIN Badlo</h4>
+      <p style="font-size:12px;color:#888;margin-bottom:10px;">App ka lock PIN badalna chahte ho?</p>
+      <button class="btn-primary" style="background:linear-gradient(135deg,#3f4f56,#788a91);" onclick="changePinFlow()">🔑 PIN Badlo</button>
     </div>
     <div class="card">
       <h4 style="color:#0B4D3A;margin-bottom:8px;">💾 Data Backup</h4>
@@ -1769,4 +1780,96 @@ window.addEventListener('beforeinstallprompt', (e) => {
 document.getElementById("installBtn").onclick = async () => { if (deferredPrompt) deferredPrompt.prompt(); };
 if ('serviceWorker' in navigator) { navigator.serviceWorker.register('/sw.js').catch(() => {}); }
 
-loadHome();
+// ===== PIN LOCK =====
+function checkPin() {
+  let savedPin = localStorage.getItem('maktab_pin');
+  if (!savedPin) {
+    showSetPin();
+    return;
+  }
+  document.getElementById("app").innerHTML = `
+    <div style="padding:60px 30px 20px;text-align:center;">
+      <div style="font-size:50px;margin-bottom:10px;">🔒</div>
+      <h3 style="color:#0B4D3A;margin-bottom:6px;">Maktab Darul Huda</h3>
+      <p style="font-size:13px;color:#888;margin-bottom:24px;">PIN daalo app kholne ke liye</p>
+      <div id="pinDisplay" style="font-size:30px;letter-spacing:12px;color:#0B4D3A;margin-bottom:20px;">----</div>
+      <div id="pinError" style="color:#D9614C;font-size:12px;height:18px;margin-bottom:10px;"></div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:240px;margin:0 auto;">
+        ${[1,2,3,4,5,6,7,8,9,'',0,'⌫'].map(n => `
+          <button onclick="pinPress('${n}')" style="padding:18px;font-size:20px;font-weight:700;border-radius:50%;border:2px solid #e7e2d4;background:#fff;color:#0B4D3A;box-shadow:0 3px 8px rgba(11,77,58,0.08);">${n}</button>`).join('')}
+      </div>
+    </div>`;
+}
+
+let pinInput = '';
+function pinPress(val) {
+  if (val === '') return;
+  if (val === '⌫') {
+    pinInput = pinInput.slice(0, -1);
+  } else if (pinInput.length < 4) {
+    pinInput += val;
+  }
+  let dots = pinInput.replace(/./g, '●') + '----'.slice(pinInput.length);
+  document.getElementById('pinDisplay').innerText = dots;
+  document.getElementById('pinError').innerText = '';
+  if (pinInput.length === 4) {
+    let saved = localStorage.getItem('maktab_pin');
+    if (pinInput === saved) {
+      pinInput = '';
+      loadHome();
+    } else {
+      document.getElementById('pinError').innerText = '❌ Galat PIN, dobara koshish karo';
+      pinInput = '';
+      document.getElementById('pinDisplay').innerText = '----';
+    }
+  }
+}
+
+function showSetPin() {
+  document.getElementById("app").innerHTML = `
+    <div style="padding:60px 30px 20px;text-align:center;">
+      <div style="font-size:50px;margin-bottom:10px;">🔐</div>
+      <h3 style="color:#0B4D3A;margin-bottom:6px;">Naya PIN Set Karo</h3>
+      <p style="font-size:13px;color:#888;margin-bottom:24px;">Koi 4 digit PIN chuno — ek baar hi set hoga</p>
+      <div id="pinDisplay" style="font-size:30px;letter-spacing:12px;color:#0B4D3A;margin-bottom:20px;">----</div>
+      <div id="pinError" style="color:#D9614C;font-size:12px;height:18px;margin-bottom:10px;"></div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:240px;margin:0 auto;">
+        ${[1,2,3,4,5,6,7,8,9,'',0,'⌫'].map(n => `
+          <button onclick="setPinPress('${n}')" style="padding:18px;font-size:20px;font-weight:700;border-radius:50%;border:2px solid #e7e2d4;background:#fff;color:#0B4D3A;box-shadow:0 3px 8px rgba(11,77,58,0.08);">${n}</button>`).join('')}
+      </div>
+    </div>`;
+}
+
+let newPinInput = '', confirmingPin = '', firstPin = '';
+function setPinPress(val) {
+  if (val === '') return;
+  if (val === '⌫') {
+    newPinInput = newPinInput.slice(0,-1);
+  } else if (newPinInput.length < 4) {
+    newPinInput += val;
+  }
+  let dots = newPinInput.replace(/./g,'●') + '----'.slice(newPinInput.length);
+  document.getElementById('pinDisplay').innerText = dots;
+  if (newPinInput.length === 4) {
+    if (!firstPin) {
+      firstPin = newPinInput;
+      newPinInput = '';
+      document.getElementById('pinDisplay').innerText = '----';
+      document.querySelector('h3').innerText = 'Dobara likho confirm karne ke liye';
+      document.querySelector('p').innerText = '';
+    } else {
+      if (newPinInput === firstPin) {
+        localStorage.setItem('maktab_pin', newPinInput);
+        firstPin = ''; newPinInput = '';
+        loadHome();
+      } else {
+        document.getElementById('pinError').innerText = '❌ PIN match nahi hua, dobara shuru karo';
+        firstPin = ''; newPinInput = '';
+        document.getElementById('pinDisplay').innerText = '----';
+        document.querySelector('h3').innerText = 'Naya PIN Set Karo';
+      }
+    }
+  }
+}
+
+checkPin();
