@@ -159,6 +159,38 @@ async function loadHome() {
       </div>
     </div>` : '';
 
+  let { data: notices } = await db.from('notices').select('*').order('created_at', { ascending: false }).limit(3);
+  let noticeHtml = (notices && notices.length > 0) ? `
+    <div class="card" style="background:linear-gradient(160deg,#fffdf5,#fbf3e0);border:1px solid #e3c98a;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div style="font-size:12px;color:#B8862C;font-weight:700;">📢 اعلانات</div>
+        <span onclick="loadNoticeBoard()" style="font-size:11px;color:#1C6E89;cursor:pointer;">سب دیکھیں ›</span>
+      </div>
+      ${notices.map(n => `<div class="urdu" style="font-size:14px;color:#5c4a1a;padding:6px 0;border-bottom:1px dotted #e3c98a;">${n.text}</div>`).join('')}
+    </div>` : '';
+
+  // Weekly summary — sirf Sunday ko dikhega (haftay ka khulasa)
+  let weeklyHtml = '';
+  if (new Date().getDay() === 0 && !isChutti()) {
+    let weekAgo = new Date(Date.now() - 7*86400000).toISOString().slice(0,10);
+    let { data: weekAtt } = await db.from('attendance').select('*').gte('date', weekAgo).lt('date', today);
+    if (weekAtt && weekAtt.length > 0) {
+      let weekPresent = weekAtt.filter(a => a.status === 'present').length;
+      let weekTotal = weekAtt.length;
+      let weekPct = weekTotal > 0 ? Math.round((weekPresent/weekTotal)*100) : 0;
+      let uniqueDays = new Set(weekAtt.map(a => a.date)).size;
+      weeklyHtml = `
+        <div class="card" style="background:linear-gradient(135deg,#7A4B8C,#9a6bab);color:#fff;">
+          <div style="font-size:12px;opacity:0.85;margin-bottom:8px;">📈 اس ہفتے کا خلاصہ</div>
+          <div style="display:flex;gap:10px;text-align:center;">
+            <div style="flex:1;"><div style="font-size:20px;font-weight:700;font-family:'JetBrains Mono';">${weekPct}%</div><div style="font-size:10px;opacity:0.8;">Haazri</div></div>
+            <div style="flex:1;"><div style="font-size:20px;font-weight:700;font-family:'JetBrains Mono';">${weekPresent}</div><div style="font-size:10px;opacity:0.8;">Kul Haazir</div></div>
+            <div style="flex:1;"><div style="font-size:20px;font-weight:700;font-family:'JetBrains Mono';">${uniqueDays}</div><div style="font-size:10px;opacity:0.8;">Din</div></div>
+          </div>
+        </div>`;
+    }
+  }
+
   document.getElementById("app").innerHTML = chuttiBanner() + `
     <div class="float-bar">
       <div class="float-stat">
@@ -180,6 +212,8 @@ async function loadHome() {
       <input type="text" id="homeSearchInput" placeholder="Talib ka naam likho..." oninput="searchHomeStudents(this.value)" style="border:none;outline:none;flex:1;font-size:14px;direction:rtl;font-family:'Outfit',sans-serif;">
     </div>
     <div id="homeSearchResults" style="margin:6px 18px 0;"></div>
+    ${weeklyHtml}
+    ${noticeHtml}
     <div class="card" style="text-align:center;background:linear-gradient(160deg,#fff,#fbfaf5);border:1px solid #e7e2d4;">
       <div style="font-size:11px;color:#B8862C;font-weight:600;margin-bottom:6px;">📖 آج کی بات</div>
       <div class="urdu" style="font-size:16px;color:#0B4D3A;line-height:1.8;">${getDailyQuote().text}</div>
@@ -1114,7 +1148,53 @@ function saveFeeAmount() {
 }
 
 
-// ===== IMAM PERSONAL HAZRI (PRIVATE) =====
+// ===== NOTICE BOARD =====
+async function loadNoticeBoard() {
+  document.getElementById("app").innerHTML = '<div class="loading">⏳ Loading...</div>';
+  let { data: notices } = await db.from('notices').select('*').order('created_at', { ascending: false });
+  let html = `
+    <div style="padding:10px;">
+      <button class="btn-cancel" onclick="loadHome()" style="width:auto;padding:8px 16px;">← Wapas</button>
+    </div>
+    <div class="date-banner">📢 اعلانات (Notice Board)</div>
+    <div class="card">
+      <textarea id="newNoticeText" class="input-field" style="min-height:70px;" placeholder="Naya elaan likho... jaise: Kal Eid ki chutti hai"></textarea>
+      <button class="btn-primary" onclick="addNotice()">📢 Elaan Lagao</button>
+    </div>`;
+
+  if (!notices || notices.length === 0) {
+    html += `<div class="card" style="text-align:center;color:#999;padding:20px;">Abhi koi elaan nahi hai.</div>`;
+  } else {
+    notices.forEach(n => {
+      let dateStr = new Date(n.created_at).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
+      html += `<div class="card" style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+        <div style="flex:1;">
+          <div class="urdu" style="font-size:14px;color:#0B4D3A;">${n.text}</div>
+          <div style="font-size:10.5px;color:#999;margin-top:5px;">${dateStr}</div>
+        </div>
+        <button onclick="deleteNotice(${n.id})" class="btn-delete" style="padding:6px 10px;font-size:13px;">🗑</button>
+      </div>`;
+    });
+  }
+  document.getElementById("app").innerHTML = html;
+}
+
+async function addNotice() {
+  let text = document.getElementById('newNoticeText').value.trim();
+  if (!text) { showToast("⚠ Kuch likho pehle"); return; }
+  await db.from('notices').insert([{ text }]);
+  showToast("✅ Elaan lag gaya");
+  loadNoticeBoard();
+}
+
+async function deleteNotice(id) {
+  if (!confirm("Ye elaan delete karna chahte ho?")) return;
+  await db.from('notices').delete().eq('id', id);
+  showToast("🗑 Delete ho gaya");
+  loadNoticeBoard();
+}
+
+
 const prayers = [
   { key: 'fajr', label: 'فجر' },
   { key: 'zuhr', label: 'ظہر' },
@@ -1226,6 +1306,11 @@ function loadSettings() {
       <p style="font-size:12px;color:#888;margin-bottom:10px;">Har talib se mahane ki kitni fees lete ho (₹). Isse "Kul Collection" calculate hoga.</p>
       <input type="number" id="feeAmountInput" class="input-field" placeholder="Jaise: 100" value="${feeAmount}" style="direction:ltr;text-align:center;">
       <button class="btn-primary" onclick="saveFeeAmount()">💾 Save Karo</button>
+    </div>
+    <div class="card">
+      <h4 style="color:#0B4D3A;margin-bottom:8px;">📢 Notice Board</h4>
+      <p style="font-size:12px;color:#888;margin-bottom:10px;">Parents ke liye elaan likho, Home screen par dikhega.</p>
+      <button class="btn-primary" style="background:linear-gradient(135deg,#B8862C,#E3C16B);" onclick="loadNoticeBoard()">📢 Elaan Manage Karo</button>
     </div>
     <div class="card">
       <h4 style="color:#0B4D3A;margin-bottom:8px;">🔐 PIN Badlo</h4>
