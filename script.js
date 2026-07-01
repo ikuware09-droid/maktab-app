@@ -257,6 +257,10 @@ async function loadHome() {
         <div class="tile-icon">⚙️</div>
         <div class="tile-label">سیٹنگز</div>
       </div>
+      <div class="tile tile-teal" onclick="loadPersonalHifz()">
+        <div class="tile-icon">📿</div>
+        <div class="tile-label">میرا حفظ</div>
+      </div>
     </div>
   `;
 }
@@ -1148,7 +1152,87 @@ function saveFeeAmount() {
 }
 
 
-// ===== NOTICE BOARD =====
+// ===== MERA HIFZ (PERSONAL) =====
+async function loadPersonalHifz() {
+  document.getElementById("app").innerHTML = '<div class="loading">⏳ Loading...</div>';
+  let today = new Date().toISOString().slice(0,10);
+  let { data: logs } = await db.from('hifz_personal').select('*').order('date', { ascending: false }).limit(30);
+  let todayLogs = logs ? logs.filter(l => l.date === today) : [];
+
+  const sessions = [
+    { type: 'hafiz', session: 'subah', label: '🌅 Hafiz — Subah ka Daur', placeholder: 'Jaise: 28wa Para adha' },
+    { type: 'hafiz', session: 'shaam', label: '🌙 Hafiz — Shaam ka Daur', placeholder: 'Jaise: 29wa Para pawa' },
+    { type: 'hifz', session: 'sabaq', label: '📖 Hifz — Subah Sabaq', placeholder: 'Jaise: Surah Naba 5 ayaat' },
+    { type: 'hifz', session: 'sabaq_para', label: '📖 Hifz — Sabaq Para', placeholder: 'Jaise: Surah Naba murajaa' },
+    { type: 'hifz', session: 'amokhta', label: '🌙 Hifz — Shaam Amokhta', placeholder: 'Jaise: 27wa Para adha' },
+  ];
+
+  let sessionsHtml = sessions.map(s => {
+    let done = todayLogs.find(l => l.type === s.type && l.session === s.session);
+    return `<div class="card" style="padding:12px 14px;">
+      <div style="font-size:12.5px;font-weight:700;color:#0B4D3A;margin-bottom:6px;">${s.label}</div>
+      ${done ? `
+        <div style="background:#e9f5ee;border-radius:8px;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <div style="font-size:13px;font-weight:600;color:#0B4D3A;">✅ ${done.amount}</div>
+            ${done.note ? `<div style="font-size:10.5px;color:#888;">📝 ${done.note}</div>` : ''}
+          </div>
+          <button onclick="deletePersonalHifz(${done.id})" style="background:none;border:none;color:#D9614C;font-size:16px;">🗑</button>
+        </div>` : `
+        <input type="text" id="amt_${s.type}_${s.session}" class="input-field" placeholder="${s.placeholder}" style="margin:0 0 5px;">
+        <input type="text" id="note_${s.type}_${s.session}" class="input-field" placeholder="Note (ikhtiyari)" style="margin:0 0 6px;font-size:12px;">
+        <button onclick="savePersonalHifz('${s.type}','${s.session}')" style="background:linear-gradient(135deg,#1C8C6B,#0B4D3A);color:#fff;border:none;padding:8px;border-radius:8px;width:100%;font-weight:600;font-size:12px;">💾 Save Karo</button>`}
+    </div>`;
+  }).join('');
+
+  let historyRows = '';
+  if (logs && logs.length > 0) {
+    let byDate = {};
+    logs.forEach(l => { if (!byDate[l.date]) byDate[l.date]=[]; byDate[l.date].push(l); });
+    Object.keys(byDate).slice(0,10).forEach(date => {
+      let entries = byDate[date];
+      historyRows += `<div style="padding:10px 0;border-bottom:1px dotted #eee;">
+        <div style="font-size:11.5px;font-weight:700;color:#0B4D3A;direction:ltr;margin-bottom:4px;">${date}</div>
+        ${entries.map(e => `<div style="font-size:12px;color:#555;padding:2px 0;">
+          <span style="color:#888;">${e.type==='hafiz'?'🕋 Hafiz':'📖 Hifz'} ${e.session}:</span> ${e.amount}
+          ${e.note ? `<span style="color:#aaa;"> — ${e.note}</span>` : ''}
+        </div>`).join('')}
+      </div>`;
+    });
+  } else {
+    historyRows = '<div style="text-align:center;color:#999;padding:14px;">Abhi koi record nahi.</div>';
+  }
+
+  document.getElementById("app").innerHTML = `
+    <div style="padding:10px;">
+      <button class="btn-cancel" onclick="loadHome()" style="width:auto;padding:8px 16px;">← Wapas</button>
+    </div>
+    <div class="date-banner">📿 میرا حفظ — ${today}</div>
+    ${sessionsHtml}
+    <div class="card">
+      <h4 style="color:#0B4D3A;margin-bottom:10px;">📜 Pichli History (10 din)</h4>
+      ${historyRows}
+    </div>`;
+}
+
+async function savePersonalHifz(type, session) {
+  let today = new Date().toISOString().slice(0,10);
+  let amount = document.getElementById(`amt_${type}_${session}`).value.trim();
+  let note = document.getElementById(`note_${type}_${session}`).value.trim();
+  if (!amount) { showToast("⚠ Kitna sunaya, wo likho"); return; }
+  await db.from('hifz_personal').insert([{ student_name: type==='hafiz'?'Hafiz':'Hifz Student', type, session, date: today, amount, note }]);
+  showToast("✅ Save ho gaya");
+  loadPersonalHifz();
+}
+
+async function deletePersonalHifz(id) {
+  if (!confirm("Ye record delete karna chahte ho?")) return;
+  await db.from('hifz_personal').delete().eq('id', id);
+  showToast("🗑 Delete ho gaya");
+  loadPersonalHifz();
+}
+
+
 async function loadNoticeBoard() {
   document.getElementById("app").innerHTML = '<div class="loading">⏳ Loading...</div>';
   let { data: notices } = await db.from('notices').select('*').order('created_at', { ascending: false });
