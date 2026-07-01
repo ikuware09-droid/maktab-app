@@ -1287,10 +1287,79 @@ async function loadHifzStudent(index) {
     </div>
     <div class="date-banner">📿 ${s.name} — ${s.type==='hafiz'?'Daur':'Hifz'} — ${today}</div>
     ${sessionsHtml}
+    <div style="padding:0 10px;display:flex;gap:8px;margin-bottom:4px;">
+      <button onclick="shareHifzReport('${s.name}','${s.type}',${index},'weekly')" style="flex:1;background:#25D366;color:#fff;border:none;padding:11px;border-radius:12px;font-weight:700;font-size:12px;">📤 Haftewar Report</button>
+      <button onclick="shareHifzReport('${s.name}','${s.type}',${index},'monthly')" style="flex:1;background:#1C6E89;color:#fff;border:none;padding:11px;border-radius:12px;font-weight:700;font-size:12px;">📅 Mahana Report</button>
+    </div>
     <div class="card">
       <h4 style="color:#0B4D3A;margin-bottom:8px;">📜 Pichle Din</h4>
       ${historyHtml}
     </div>`;
+}
+
+async function shareHifzReport(studentName, type, studentIndex, period) {
+  showToast("⏳ Report taiyar ho rahi hai...");
+  let now = new Date();
+  let fromDate, toDate, periodLabel;
+
+  if (period === 'weekly') {
+    // Pichla hafta (Mon-Sat, Sunday skip)
+    let day = now.getDay();
+    let lastSun = new Date(now); lastSun.setDate(now.getDate() - day);
+    let lastMon = new Date(lastSun); lastMon.setDate(lastSun.getDate() - 6);
+    fromDate = lastMon.toISOString().slice(0,10);
+    toDate = lastSun.toISOString().slice(0,10);
+    periodLabel = 'Haftewar';
+  } else {
+    // Pichla mahina
+    let firstDay = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    let lastDay = new Date(now.getFullYear(), now.getMonth(), 0);
+    fromDate = firstDay.toISOString().slice(0,10);
+    toDate = lastDay.toISOString().slice(0,10);
+    periodLabel = firstDay.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  }
+
+  let { data: logs } = await db.from('hifz_personal').select('*')
+    .eq('student_name', studentName)
+    .gte('date', fromDate).lte('date', toDate);
+
+  // Haazri bhi fetch karo (students table se id dhoondho)
+  let { data: allStudents } = await db.from('students').select('*');
+  let matchedStudent = allStudents ? allStudents.find(s => s.name.toLowerCase() === studentName.toLowerCase()) : null;
+  let haazriSummary = '';
+  if (matchedStudent) {
+    let { data: attRecords } = await db.from('attendance').select('*')
+      .eq('student_id', matchedStudent.id)
+      .gte('date', fromDate).lte('date', toDate);
+    let attDays = (attRecords || []).filter(a => new Date(a.date).getDay() !== 0);
+    let present = attDays.filter(a => a.status === 'present').length;
+    let total = attDays.length;
+    haazriSummary = `Haazri: ${present}/${total} din\n`;
+  }
+
+  let text = `*السلام علیکم*\n\n*Maktab Darul Huda Nagothane*\n*${periodLabel} Report*\n\n*Bachche ka Naam: ${studentName}*\n\n${haazriSummary}`;
+
+  if (!logs || logs.length === 0) {
+    text += 'Is muddat mein koi record nahi mila.';
+  } else if (type === 'hafiz') {
+    let subahCount = logs.filter(l => l.session === 'subah_daur').length;
+    let shaamCount = logs.filter(l => l.session === 'shaam_daur').length;
+    let subahDetails = logs.filter(l => l.session === 'subah_daur').map(l => `${l.date}: ${l.amount}`).join('\n');
+    let shaamDetails = logs.filter(l => l.session === 'shaam_daur').map(l => `${l.date}: ${l.amount}`).join('\n');
+    text += `*Subah ka Daur:* ${subahCount} baar\n${subahDetails}\n\n*Shaam ka Daur:* ${shaamCount} baar\n${shaamDetails}`;
+  } else {
+    let sabaqHaan = logs.filter(l => l.session === 'sabaq' && l.amount === 'Haan').length;
+    let sabaqNahi = logs.filter(l => l.session === 'sabaq' && l.amount === 'Nahi').length;
+    let sabaqParaHaan = logs.filter(l => l.session === 'sabaq_para' && l.amount === 'Haan').length;
+    let sabaqParaNahi = logs.filter(l => l.session === 'sabaq_para' && l.amount === 'Nahi').length;
+    let amokhta = logs.filter(l => l.session === 'amokhta').map(l => `${l.date}: ${l.amount}`).join('\n');
+    text += `*Sabaq (Naya):* ${sabaqHaan} baar sunaya, ${sabaqNahi} baar yaad nahi tha\n`;
+    text += `*Sabaq Para:* ${sabaqParaHaan} baar sunaya, ${sabaqParaNahi} baar yaad nahi tha\n\n`;
+    text += `*Amokhta (Shaam):*\n${amokhta || 'Koi record nahi'}`;
+  }
+
+  text += `\n\n_JazakAllah Khair_`;
+  window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
 }
 
 async function savePersonalHifzYesNo(studentName, type, session, studentIndex, value) {
