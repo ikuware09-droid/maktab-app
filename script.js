@@ -1225,30 +1225,45 @@ async function loadHifzStudent(index) {
   let todayLogs = logs ? logs.filter(l => l.date === today) : [];
 
   const sessions = s.type === 'hafiz' ? [
-    { session: 'subah_daur', label: '🌅 Subah ka Daur', placeholder: 'Jaise: 28wa Para adha' },
-    { session: 'shaam_daur', label: '🌙 Shaam ka Daur', placeholder: 'Jaise: 29wa Para pawa' },
+    { session: 'subah_daur', label: '🌅 Subah ka Daur', type: 'text', placeholder: 'Jaise: 28wa Para adha' },
+    { session: 'shaam_daur', label: '🌙 Shaam ka Daur', type: 'text', placeholder: 'Jaise: 29wa Para pawa' },
   ] : [
-    { session: 'sabaq', label: '📖 Subah Sabaq (Naya)', placeholder: 'Jaise: Surah Naba 5 ayaat' },
-    { session: 'sabaq_para', label: '📖 Sabaq Para', placeholder: 'Jaise: Surah Naba murajaa' },
-    { session: 'amokhta', label: '🌙 Shaam Amokhta', placeholder: 'Jaise: 27wa Para adha' },
+    { session: 'sabaq', label: '📖 Subah Sabaq (Naya)', type: 'yesno' },
+    { session: 'sabaq_para', label: '📖 Sabaq Para', type: 'yesno' },
+    { session: 'amokhta', label: '🌙 Shaam Amokhta', type: 'text', placeholder: 'Jaise: 27wa Para adha' },
   ];
 
   let sessionsHtml = sessions.map(sess => {
     let done = todayLogs.find(l => l.session === sess.session);
-    return `<div class="card" style="padding:12px 14px;">
-      <div style="font-size:12.5px;font-weight:700;color:#0B4D3A;margin-bottom:6px;">${sess.label}</div>
-      ${done ? `
-        <div style="background:#e9f5ee;border-radius:8px;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;">
-          <div>
-            <div style="font-size:13px;font-weight:600;color:#0B4D3A;">✅ ${done.amount}</div>
-            ${done.note ? `<div style="font-size:10.5px;color:#888;">📝 ${done.note}</div>` : ''}
-          </div>
-          <button onclick="deletePersonalHifz(${done.id},'${s.name}',${index})" style="background:none;border:none;color:#D9614C;font-size:16px;">🗑</button>
-        </div>` : `
-        <input type="text" id="amt_${sess.session}" class="input-field" placeholder="${sess.placeholder}" style="margin:0 0 5px;">
-        <input type="text" id="note_${sess.session}" class="input-field" placeholder="Note (ikhtiyari)" style="margin:0 0 6px;font-size:12px;">
-        <button onclick="savePersonalHifz('${s.name}','${s.type}','${sess.session}',${index})" style="background:linear-gradient(135deg,#1C8C6B,#0B4D3A);color:#fff;border:none;padding:8px;border-radius:8px;width:100%;font-weight:600;font-size:12px;">💾 Save Karo</button>`}
-    </div>`;
+    if (sess.type === 'yesno') {
+      return `<div class="card" style="padding:12px 14px;">
+        <div style="font-size:12.5px;font-weight:700;color:#0B4D3A;margin-bottom:8px;">${sess.label}</div>
+        ${done ? `
+          <div style="background:${done.amount==='Haan'?'#e9f5ee':'#fdf1ef'};border-radius:8px;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;">
+            <div style="font-size:13px;font-weight:600;color:${done.amount==='Haan'?'#0B4D3A':'#D9614C'};">${done.amount==='Haan'?'✅ Sunaya':'❌ Nahi Sunaya'}</div>
+            <button onclick="deletePersonalHifz(${done.id},'${s.name}',${index})" style="background:none;border:none;color:#D9614C;font-size:16px;">🗑</button>
+          </div>` : `
+          <div style="display:flex;gap:10px;">
+            <button onclick="savePersonalHifzYesNo('${s.name}','${s.type}','${sess.session}',${index},'Haan')" style="flex:1;padding:11px;border-radius:10px;border:2px solid #1C8C6B;background:#e9f5ee;color:#0B4D3A;font-weight:700;font-size:13px;">✅ Sunaya</button>
+            <button onclick="savePersonalHifzYesNo('${s.name}','${s.type}','${sess.session}',${index},'Nahi')" style="flex:1;padding:11px;border-radius:10px;border:2px solid #D9614C;background:#fdf1ef;color:#D9614C;font-weight:700;font-size:13px;">❌ Nahi Sunaya</button>
+          </div>`}
+      </div>`;
+    } else {
+      return `<div class="card" style="padding:12px 14px;">
+        <div style="font-size:12.5px;font-weight:700;color:#0B4D3A;margin-bottom:6px;">${sess.label}</div>
+        ${done ? `
+          <div style="background:#e9f5ee;border-radius:8px;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <div style="font-size:13px;font-weight:600;color:#0B4D3A;">✅ ${done.amount}</div>
+              ${done.note ? `<div style="font-size:10.5px;color:#888;">📝 ${done.note}</div>` : ''}
+            </div>
+            <button onclick="deletePersonalHifz(${done.id},'${s.name}',${index})" style="background:none;border:none;color:#D9614C;font-size:16px;">🗑</button>
+          </div>` : `
+          <input type="text" id="amt_${sess.session}" class="input-field" placeholder="${sess.placeholder}" style="margin:0 0 5px;">
+          <input type="text" id="note_${sess.session}" class="input-field" placeholder="Note (ikhtiyari)" style="margin:0 0 6px;font-size:12px;">
+          <button onclick="savePersonalHifz('${s.name}','${s.type}','${sess.session}',${index})" style="background:linear-gradient(135deg,#1C8C6B,#0B4D3A);color:#fff;border:none;padding:8px;border-radius:8px;width:100%;font-weight:600;font-size:12px;">💾 Save Karo</button>`}
+      </div>`;
+    }
   }).join('');
 
   let historyHtml = '';
@@ -1276,6 +1291,13 @@ async function loadHifzStudent(index) {
       <h4 style="color:#0B4D3A;margin-bottom:8px;">📜 Pichle Din</h4>
       ${historyHtml}
     </div>`;
+}
+
+async function savePersonalHifzYesNo(studentName, type, session, studentIndex, value) {
+  let today = new Date().toISOString().slice(0,10);
+  await db.from('hifz_personal').insert([{ student_name: studentName, type, session, date: today, amount: value, note: '' }]);
+  showToast(value === 'Haan' ? "✅ Save ho gaya" : "❌ Record ho gaya");
+  loadHifzStudent(studentIndex);
 }
 
 async function savePersonalHifz(studentName, type, session, studentIndex) {
