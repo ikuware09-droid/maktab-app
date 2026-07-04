@@ -457,11 +457,33 @@ async function buildTopStudentsHtml(students) {
 async function loadTopStudents() {
   document.getElementById("app").innerHTML = '<div class="loading">⏳ Loading...</div>';
   let { data: students } = await db.from('students').select('*').order('name');
+
+  // Best student of the month
+  let now = new Date();
+  let firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0,10);
+  let today = now.toISOString().slice(0,10);
+  let { data: monthAtt } = await db.from('attendance').select('*').gte('date', firstDay).lte('date', today).eq('status', 'present');
+  let monthLabel = now.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  let bestHtml = '';
+  if (monthAtt && students) {
+    let counts = {};
+    monthAtt.forEach(a => { counts[a.student_id] = (counts[a.student_id] || 0) + 1; });
+    let best = students.map(s => ({ ...s, monthPresent: counts[s.id] || 0 })).sort((a,b) => b.monthPresent - a.monthPresent)[0];
+    if (best && best.monthPresent > 0) {
+      bestHtml = `<div style="margin:10px 18px;background:linear-gradient(135deg,#B8862C,#E3C16B);border-radius:18px;padding:16px;text-align:center;color:#3a2a00;">
+        <div style="font-size:11px;font-weight:700;margin-bottom:6px;">🏅 ${monthLabel} Ka Best Talib</div>
+        <div style="font-size:20px;font-weight:800;">${best.name}</div>
+        <div style="font-size:11px;margin-top:4px;">${best.batch || ''} · ${best.monthPresent} din haazir</div>
+      </div>`;
+    }
+  }
+
   let html = `
     <div style="padding:10px;">
       <button class="btn-cancel" onclick="loadHome()" style="width:auto;padding:8px 16px;">← Wapas</button>
     </div>
     <div class="date-banner">🏆 Sabse Zyada Haazir Talaba</div>
+    ${bestHtml}
     ${await buildTopStudentsHtml(students)}`;
   document.getElementById("app").innerHTML = html;
 }
@@ -793,6 +815,9 @@ async function loadProfile(studentId) {
       <button class="btn-print" onclick="window.print()">🖨 Print</button>
       <button class="btn-monthly" onclick="loadMonthlyReport(${studentId},'${s.name}')">📊 Monthly</button>
     </div>
+    <div style="padding:0 10px 8px;">
+      <button class="btn-primary" style="background:linear-gradient(135deg,#25D366,#1ea952);" onclick="shareReportCard(${studentId})">📋 Professional Report Card Share Karo</button>
+    </div>
     <div style="padding:0 10px;">
       <button class="btn-primary" style="background:linear-gradient(135deg,#B8862C,#E3C16B);" onclick="loadCertificate(${studentId})">🎖️ Certificate Banayein</button>
     </div>
@@ -828,6 +853,96 @@ async function saveBatchChange(studentId) {
   if (error) { showToast("Error: " + error.message); return; }
   showToast("✅ Batch change ho gaya!");
   loadProfile(studentId);
+}
+
+async function shareReportCard(studentId) {
+  showToast("⏳ Report Card taiyar ho raha hai...");
+  let { data: s } = await db.from('students').select('*').eq('id', studentId).single();
+  let year = new Date().getFullYear();
+  let now = new Date();
+  let monthLabel = now.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  let firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0,10);
+  let today = now.toISOString().slice(0,10);
+  let { data: att } = await db.from('attendance').select('*').eq('student_id', studentId).gte('date', firstDay).lte('date', today);
+  let { data: fees } = await db.from('fees').select('*').eq('student_id', studentId).eq('year', year);
+  let { data: allFees } = await db.from('fees').select('*').eq('student_id', studentId).eq('year', year);
+
+  let attDays = (att||[]).filter(a => new Date(a.date).getDay() !== 0);
+  let present = attDays.filter(a => a.status === 'present').length;
+  let total = attDays.length;
+  let absent = total - present;
+  let pct = total > 0 ? Math.round((present/total)*100) : 0;
+  let pctColor = pct >= 75 ? '#1C8C6B' : pct >= 50 ? '#C9972C' : '#D9614C';
+  let curMonth = now.getMonth() + 1;
+  let thisMonthFee = (allFees||[]).find(f => f.month === curMonth && f.paid);
+  let totalPaid = (allFees||[]).filter(f => f.paid).length;
+  let feeAmount = parseInt(localStorage.getItem('maktab_fee_amount')) || 0;
+  let initial = s.name ? s.name.charAt(0).toUpperCase() : '?';
+
+  let div = document.createElement('div');
+  div.style.cssText = 'position:fixed;left:-9999px;top:0;width:400px;font-family:Outfit,sans-serif;';
+  div.innerHTML = `
+    <div style="background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,0.15);">
+      <div style="background:linear-gradient(160deg,#0B4D3A,#117860);padding:22px 20px 32px;text-align:center;color:#fff;position:relative;">
+        <div style="width:52px;height:52px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#E3C16B,#B8862C);display:flex;align-items:center;justify-content:center;font-size:22px;margin:0 auto 10px;">🕌</div>
+        <div style="font-size:15px;font-weight:700;">مکتب دار الھدیٰ ناگوٹھانہ</div>
+        <div style="font-size:10px;opacity:0.8;margin-top:2px;letter-spacing:0.5px;">NAGOTHANE · MAHARASHTRA</div>
+        <div style="display:inline-block;background:rgba(255,255,255,0.15);border:1px solid rgba(227,193,107,0.6);padding:4px 14px;border-radius:20px;font-size:10px;margin-top:10px;">📋 ماہانہ رپورٹ — ${monthLabel}</div>
+      </div>
+      <div style="text-align:center;padding:20px 16px 10px;">
+        <div style="width:58px;height:58px;border-radius:50%;background:linear-gradient(160deg,#1C8C6B,#0B4D3A);color:#fff;font-size:22px;font-weight:700;display:flex;align-items:center;justify-content:center;margin:0 auto 10px;border:3px solid #e9f5ee;">${initial}</div>
+        <div style="font-size:18px;font-weight:700;color:#0B4D3A;">${s.name}</div>
+        <div style="font-size:11px;color:#888;margin-top:3px;">والد: ${s.father_name || '-'}</div>
+        <div style="display:inline-block;background:#e9f5ee;color:#0B4D3A;padding:4px 14px;border-radius:20px;font-size:11px;font-weight:600;margin-top:8px;">${s.batch || ''}</div>
+      </div>
+      <div style="display:flex;gap:1px;background:#f0ece4;margin:0 16px 14px;border-radius:14px;overflow:hidden;">
+        <div style="flex:1;background:#fff;padding:12px 4px;text-align:center;"><div style="font-size:18px;font-weight:700;color:#1C8C6B;">${present}</div><div style="font-size:9px;color:#888;margin-top:2px;">حاضر</div></div>
+        <div style="flex:1;background:#fff;padding:12px 4px;text-align:center;"><div style="font-size:18px;font-weight:700;color:#D9614C;">${absent}</div><div style="font-size:9px;color:#888;margin-top:2px;">غائب</div></div>
+        <div style="flex:1;background:#fff;padding:12px 4px;text-align:center;"><div style="font-size:18px;font-weight:700;color:${pctColor};">${pct}%</div><div style="font-size:9px;color:#888;margin-top:2px;">فیصد</div></div>
+        <div style="flex:1;background:#fff;padding:12px 4px;text-align:center;"><div style="font-size:18px;font-weight:700;color:${thisMonthFee?'#1C8C6B':'#D9614C'};">${thisMonthFee?'✅':'❌'}</div><div style="font-size:9px;color:#888;margin-top:2px;">فیس</div></div>
+      </div>
+      <div style="padding:0 16px 10px;">
+        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:5px;"><span style="color:#555;">حاضری</span><span style="font-weight:600;color:#0B4D3A;">${pct}%</span></div>
+        <div style="height:9px;background:#e9f5ee;border-radius:5px;overflow:hidden;"><div style="height:100%;border-radius:5px;background:linear-gradient(90deg,#0B4D3A,#1C8C6B);width:${pct}%;"></div></div>
+      </div>
+      <div style="margin:0 16px 12px;background:#fafaf7;border-radius:12px;overflow:hidden;">
+        <div style="background:#0B4D3A;color:#E3C16B;padding:7px 12px;font-size:11px;font-weight:700;">📊 حاضری کی تفصیل</div>
+        <div style="display:flex;justify-content:space-between;padding:8px 12px;border-bottom:1px dotted #eee;"><span style="font-size:11.5px;color:#555;">قابل حاضری دن</span><span style="font-size:12px;font-weight:600;">${total}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:8px 12px;border-bottom:1px dotted #eee;"><span style="font-size:11.5px;color:#555;">حاضر</span><span style="font-size:12px;font-weight:600;background:#e9f5ee;color:#0B4D3A;padding:2px 10px;border-radius:8px;">${present} دن</span></div>
+        <div style="display:flex;justify-content:space-between;padding:8px 12px;"><span style="font-size:11.5px;color:#555;">غائب</span><span style="font-size:12px;font-weight:600;background:#fdf1ef;color:#D9614C;padding:2px 10px;border-radius:8px;">${absent} دن</span></div>
+      </div>
+      <div style="margin:0 16px 12px;background:#fafaf7;border-radius:12px;overflow:hidden;">
+        <div style="background:#0B4D3A;color:#E3C16B;padding:7px 12px;font-size:11px;font-weight:700;">💰 فیس کی تفصیل</div>
+        <div style="display:flex;justify-content:space-between;padding:8px 12px;border-bottom:1px dotted #eee;"><span style="font-size:11.5px;color:#555;">اس ماہ کی فیس</span><span style="font-size:12px;font-weight:600;background:${thisMonthFee?'#e9f5ee':'#fdf1ef'};color:${thisMonthFee?'#0B4D3A':'#D9614C'};padding:2px 10px;border-radius:8px;">${thisMonthFee?'✅ ادا کی':'❌ باقی ہے'}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:8px 12px;"><span style="font-size:11.5px;color:#555;">کل فیس (${year})</span><span style="font-size:12px;font-weight:600;">${totalPaid}/12 ماہ ${feeAmount>0?'= ₹'+(totalPaid*feeAmount):''}</span></div>
+      </div>
+      <div style="padding:12px 16px 20px;text-align:center;border-top:1px dashed #e7e2d4;">
+        <div style="width:36px;height:36px;border:2px solid #B8862C;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;margin:0 auto 8px;">🕌</div>
+        <div style="font-size:10.5px;color:#888;line-height:1.7;">یہ رپورٹ مکتب دار الھدیٰ ناگوٹھانہ کی جانب سے ہے<br>جزاک اللہ خیراً</div>
+      </div>
+    </div>`;
+  document.body.appendChild(div);
+
+  try {
+    let canvas = await html2canvas(div, { scale: 2, backgroundColor: '#fff', useCORS: true });
+    document.body.removeChild(div);
+    canvas.toBlob(async (blob) => {
+      let file = new File([blob], 'report-card.png', { type: 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try { await navigator.share({ files: [file], title: s.name + ' — Report Card' }); } catch(e) {}
+      } else {
+        let url = URL.createObjectURL(blob);
+        let a = document.createElement('a');
+        a.href = url; a.download = 'report-card.png';
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast("✅ Report Card download ho gaya! WhatsApp se share karo");
+      }
+    }, 'image/png');
+  } catch(e) {
+    if (div.parentNode) document.body.removeChild(div);
+    showToast("⚠ Kuch masla hua, dobara koshish karo");
+  }
 }
 
 function shareProfile(encodedText) {
@@ -1534,6 +1649,8 @@ function changePinFlow() {
 
 function loadSettings() {
   let feeAmount = localStorage.getItem('maktab_fee_amount') || '';
+  let darkMode = localStorage.getItem('dark_mode') === 'on';
+  let autoRefresh = localStorage.getItem('auto_refresh') === 'on';
   document.getElementById("app").innerHTML = `
     <div style="padding:10px;">
       <button class="btn-cancel" onclick="loadHome()" style="width:auto;padding:8px 16px;">← Wapas</button>
@@ -1541,31 +1658,136 @@ function loadSettings() {
     <div class="date-banner">⚙️ Settings</div>
     <div class="card">
       <h4 style="color:#0B4D3A;margin-bottom:8px;">💰 Mahana Fees Amount</h4>
-      <p style="font-size:12px;color:#888;margin-bottom:10px;">Har talib se mahane ki kitni fees lete ho (₹). Isse "Kul Collection" calculate hoga.</p>
+      <p style="font-size:12px;color:#888;margin-bottom:10px;">Har talib se mahane ki kitni fees lete ho (₹).</p>
       <input type="number" id="feeAmountInput" class="input-field" placeholder="Jaise: 100" value="${feeAmount}" style="direction:ltr;text-align:center;">
       <button class="btn-primary" onclick="saveFeeAmount()">💾 Save Karo</button>
     </div>
     <div class="card">
+      <h4 style="color:#0B4D3A;margin-bottom:8px;">🌙 Dark Mode</h4>
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:12px;color:#888;">App ka dark theme on/off karo</span>
+        <button id="darkBtn" onclick="toggleDarkMode()" style="padding:8px 20px;border-radius:20px;border:none;font-weight:700;font-size:12px;background:${darkMode?'#0B4D3A':'#eee'};color:${darkMode?'#fff':'#888'};">${darkMode?'ON':'OFF'}</button>
+      </div>
+    </div>
+    <div class="card">
+      <h4 style="color:#0B4D3A;margin-bottom:8px;">🔄 Auto Refresh</h4>
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:12px;color:#888;">Har 5 minute mein data khud refresh ho</span>
+        <button id="refreshBtn" onclick="toggleAutoRefresh()" style="padding:8px 20px;border-radius:20px;border:none;font-weight:700;font-size:12px;background:${autoRefresh?'#0B4D3A':'#eee'};color:${autoRefresh?'#fff':'#888'};">${autoRefresh?'ON':'OFF'}</button>
+      </div>
+    </div>
+    <div class="card">
       <h4 style="color:#0B4D3A;margin-bottom:8px;">📢 Notice Board</h4>
-      <p style="font-size:12px;color:#888;margin-bottom:10px;">Parents ke liye elaan likho, Home screen par dikhega.</p>
       <button class="btn-primary" style="background:linear-gradient(135deg,#B8862C,#E3C16B);" onclick="loadNoticeBoard()">📢 Elaan Manage Karo</button>
     </div>
     <div class="card">
-      <h4 style="color:#0B4D3A;margin-bottom:8px;">🔐 PIN Badlo</h4>
-      <p style="font-size:12px;color:#888;margin-bottom:10px;">App ka lock PIN badalna chahte ho?</p>
-      <button class="btn-primary" style="background:linear-gradient(135deg,#3f4f56,#788a91);" onclick="changePinFlow()">🔑 PIN Badlo</button>
-    </div>
-    <div class="card">
       <h4 style="color:#0B4D3A;margin-bottom:8px;">💾 Data Backup</h4>
-      <p style="font-size:12px;color:#888;margin-bottom:10px;">Talaba, haazri, aur fees ka data Excel (CSV) file mein save karo.</p>
       <button class="btn-primary" style="background:linear-gradient(135deg,#1C6E89,#3aa0bd);" onclick="backupData()">📥 Backup Download Karo</button>
     </div>
     <div class="card">
+      <h4 style="color:#0B4D3A;margin-bottom:8px;">🕌 Imam Monthly Report</h4>
+      <button class="btn-primary" style="background:linear-gradient(135deg,#7A4B8C,#9a6bab);" onclick="loadImamMonthlyReport()">📊 Mahana Imam Report</button>
+    </div>
+    <div class="card">
       <h4 style="color:#0B4D3A;margin-bottom:8px;">👳 Meri Hazri (Imam — Private)</h4>
-      <p style="font-size:12px;color:#888;margin-bottom:10px;">Apni Azaan aur Namaz ki roz ki hazri yahan rakho.</p>
       <button class="btn-primary" style="background:linear-gradient(135deg,#7A4B8C,#9a6bab);" onclick="loadImamLog()">🕌 Meri Hazri Kholo</button>
     </div>`;
 }
+
+// Dark Mode
+function toggleDarkMode() {
+  let on = localStorage.getItem('dark_mode') === 'on';
+  localStorage.setItem('dark_mode', on ? 'off' : 'on');
+  applyDarkMode();
+  loadSettings();
+}
+function applyDarkMode() {
+  let on = localStorage.getItem('dark_mode') === 'on';
+  document.body.style.background = on ? '#111' : '';
+  document.body.style.color = on ? '#e8e3d8' : '';
+  document.body.style.filter = on ? 'invert(0.88) hue-rotate(180deg)' : '';
+}
+applyDarkMode();
+
+// Auto Refresh
+let autoRefreshInterval = null;
+function toggleAutoRefresh() {
+  let on = localStorage.getItem('auto_refresh') === 'on';
+  localStorage.setItem('auto_refresh', on ? 'off' : 'on');
+  setupAutoRefresh();
+  loadSettings();
+}
+function setupAutoRefresh() {
+  if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+  if (localStorage.getItem('auto_refresh') === 'on') {
+    autoRefreshInterval = setInterval(() => { loadHome(); }, 5 * 60 * 1000);
+    showToast("🔄 Auto refresh on — har 5 min mein refresh hoga");
+  }
+}
+setupAutoRefresh();
+
+// Imam Monthly Report
+async function loadImamMonthlyReport() {
+  document.getElementById("app").innerHTML = '<div class="loading">⏳ Loading...</div>';
+  let now = new Date();
+  let year = now.getFullYear();
+  let month = now.getMonth();
+  let firstDay = new Date(year, month - 1, 1).toISOString().slice(0,10);
+  let lastDay = new Date(year, month, 0).toISOString().slice(0,10);
+  let monthLabel = new Date(year, month-1, 1).toLocaleDateString('en-GB', { month:'long', year:'numeric' });
+  let { data: logs } = await db.from('imam_log').select('*').gte('date', firstDay).lte('date', lastDay).order('date');
+
+  let total = logs ? logs.length : 0;
+  let fullDays = 0, halfDays = 0, missDays = 0;
+  (logs||[]).forEach(l => {
+    let done = prayers.filter(p => l[p.key+'_azaan'] && l[p.key+'_namaz']).length;
+    if (done === 5) fullDays++;
+    else if (done === 0) missDays++;
+    else halfDays++;
+  });
+
+  let html = `
+    <div style="padding:10px;">
+      <button class="btn-cancel" onclick="loadSettings()" style="width:auto;padding:8px 16px;">← Wapas</button>
+    </div>
+    <div class="date-banner">🕌 Imam Monthly Report — ${monthLabel}</div>
+    <div style="margin:10px 18px;background:linear-gradient(135deg,#7A4B8C,#9a6bab);color:#fff;border-radius:20px;padding:20px;text-align:center;">
+      <div style="display:flex;gap:10px;text-align:center;">
+        <div style="flex:1;"><div style="font-size:22px;font-weight:700;">${fullDays}</div><div style="font-size:10px;opacity:0.8;">Mukammal</div></div>
+        <div style="flex:1;"><div style="font-size:22px;font-weight:700;">${halfDays}</div><div style="font-size:10px;opacity:0.8;">Adha</div></div>
+        <div style="flex:1;"><div style="font-size:22px;font-weight:700;">${missDays}</div><div style="font-size:10px;opacity:0.8;">Miss</div></div>
+        <div style="flex:1;"><div style="font-size:22px;font-weight:700;">${total}</div><div style="font-size:10px;opacity:0.8;">Kul Din</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <h4 style="color:#0B4D3A;margin-bottom:10px;">📋 Roz Ka Record</h4>`;
+  (logs||[]).forEach(l => {
+    let missedList = prayers.filter(p => !l[p.key+'_azaan'] || !l[p.key+'_namaz']).map(p => {
+      let parts = [];
+      if (!l[p.key+'_azaan']) parts.push(p.label+' Azaan');
+      if (!l[p.key+'_namaz']) parts.push(p.label+' Namaz');
+      return parts.join(', ');
+    }).filter(Boolean);
+    let done = prayers.filter(p => l[p.key+'_azaan'] && l[p.key+'_namaz']).length;
+    let color = done===5?'#1C8C6B':done===0?'#D9614C':'#B8862C';
+    html += `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dotted #eee;font-size:12px;">
+      <span style="direction:ltr;">${l.date}</span>
+      <div style="text-align:left;">
+        <span style="color:${color};font-weight:700;">${done}/5 waqt</span>
+        ${missedList.length?`<div style="font-size:10px;color:#D9614C;">${missedList.join(' | ')}</div>`:''}
+        ${l.note?`<div style="font-size:10px;color:#888;">📝 ${l.note}</div>`:''}
+      </div>
+    </div>`;
+  });
+  if (!logs || logs.length === 0) html += '<div style="text-align:center;color:#999;padding:14px;">Is mahine koi record nahi.</div>';
+  html += `</div>
+    <div style="padding:0 18px 20px;">
+      <button class="btn-print" style="width:100%;" onclick="window.print()">🖨 Print Karo (Committee ke liye)</button>
+    </div>`;
+  document.getElementById("app").innerHTML = html;
+}
+
+
 
 function toCSV(rows) {
   return rows.map(r => r.map(v => `"${String(v===null||v===undefined?'':v).replace(/"/g,'""')}"`).join(',')).join('\n');
@@ -2103,96 +2325,4 @@ window.addEventListener('beforeinstallprompt', (e) => {
 document.getElementById("installBtn").onclick = async () => { if (deferredPrompt) deferredPrompt.prompt(); };
 if ('serviceWorker' in navigator) { navigator.serviceWorker.register('/sw.js').catch(() => {}); }
 
-// ===== PIN LOCK =====
-function checkPin() {
-  let savedPin = localStorage.getItem('maktab_pin');
-  if (!savedPin) {
-    showSetPin();
-    return;
-  }
-  document.getElementById("app").innerHTML = `
-    <div style="padding:60px 30px 20px;text-align:center;">
-      <div style="font-size:50px;margin-bottom:10px;">🔒</div>
-      <h3 style="color:#0B4D3A;margin-bottom:6px;">Maktab Darul Huda</h3>
-      <p style="font-size:13px;color:#888;margin-bottom:24px;">PIN daalo app kholne ke liye</p>
-      <div id="pinDisplay" style="font-size:30px;letter-spacing:12px;color:#0B4D3A;margin-bottom:20px;">----</div>
-      <div id="pinError" style="color:#D9614C;font-size:12px;height:18px;margin-bottom:10px;"></div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:240px;margin:0 auto;">
-        ${[1,2,3,4,5,6,7,8,9,'',0,'⌫'].map(n => `
-          <button onclick="pinPress('${n}')" style="padding:18px;font-size:20px;font-weight:700;border-radius:50%;border:2px solid #e7e2d4;background:#fff;color:#0B4D3A;box-shadow:0 3px 8px rgba(11,77,58,0.08);">${n}</button>`).join('')}
-      </div>
-    </div>`;
-}
-
-let pinInput = '';
-function pinPress(val) {
-  if (val === '') return;
-  if (val === '⌫') {
-    pinInput = pinInput.slice(0, -1);
-  } else if (pinInput.length < 4) {
-    pinInput += val;
-  }
-  let dots = pinInput.replace(/./g, '●') + '----'.slice(pinInput.length);
-  document.getElementById('pinDisplay').innerText = dots;
-  document.getElementById('pinError').innerText = '';
-  if (pinInput.length === 4) {
-    let saved = localStorage.getItem('maktab_pin');
-    if (pinInput === saved) {
-      pinInput = '';
-      loadHome();
-    } else {
-      document.getElementById('pinError').innerText = '❌ Galat PIN, dobara koshish karo';
-      pinInput = '';
-      document.getElementById('pinDisplay').innerText = '----';
-    }
-  }
-}
-
-function showSetPin() {
-  document.getElementById("app").innerHTML = `
-    <div style="padding:60px 30px 20px;text-align:center;">
-      <div style="font-size:50px;margin-bottom:10px;">🔐</div>
-      <h3 style="color:#0B4D3A;margin-bottom:6px;">Naya PIN Set Karo</h3>
-      <p style="font-size:13px;color:#888;margin-bottom:24px;">Koi 4 digit PIN chuno — ek baar hi set hoga</p>
-      <div id="pinDisplay" style="font-size:30px;letter-spacing:12px;color:#0B4D3A;margin-bottom:20px;">----</div>
-      <div id="pinError" style="color:#D9614C;font-size:12px;height:18px;margin-bottom:10px;"></div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:240px;margin:0 auto;">
-        ${[1,2,3,4,5,6,7,8,9,'',0,'⌫'].map(n => `
-          <button onclick="setPinPress('${n}')" style="padding:18px;font-size:20px;font-weight:700;border-radius:50%;border:2px solid #e7e2d4;background:#fff;color:#0B4D3A;box-shadow:0 3px 8px rgba(11,77,58,0.08);">${n}</button>`).join('')}
-      </div>
-    </div>`;
-}
-
-let newPinInput = '', confirmingPin = '', firstPin = '';
-function setPinPress(val) {
-  if (val === '') return;
-  if (val === '⌫') {
-    newPinInput = newPinInput.slice(0,-1);
-  } else if (newPinInput.length < 4) {
-    newPinInput += val;
-  }
-  let dots = newPinInput.replace(/./g,'●') + '----'.slice(newPinInput.length);
-  document.getElementById('pinDisplay').innerText = dots;
-  if (newPinInput.length === 4) {
-    if (!firstPin) {
-      firstPin = newPinInput;
-      newPinInput = '';
-      document.getElementById('pinDisplay').innerText = '----';
-      document.querySelector('h3').innerText = 'Dobara likho confirm karne ke liye';
-      document.querySelector('p').innerText = '';
-    } else {
-      if (newPinInput === firstPin) {
-        localStorage.setItem('maktab_pin', newPinInput);
-        firstPin = ''; newPinInput = '';
-        loadHome();
-      } else {
-        document.getElementById('pinError').innerText = '❌ PIN match nahi hua, dobara shuru karo';
-        firstPin = ''; newPinInput = '';
-        document.getElementById('pinDisplay').innerText = '----';
-        document.querySelector('h3').innerText = 'Naya PIN Set Karo';
-      }
-    }
-  }
-}
-
-checkPin();
+loadHome();
