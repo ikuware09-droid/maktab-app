@@ -132,7 +132,7 @@ function searchHomeStudents(query) {
     return;
   }
   box.innerHTML = results.map(s => `
-    <div onclick="loadProfile(${s.id})" style="background:#fff;border-radius:14px;padding:11px 14px;margin-bottom:7px;display:flex;align-items:center;gap:12px;box-shadow:0 4px 10px rgba(11,77,58,0.06);cursor:pointer;">
+    <div onclick="loadProfile(${s.id},'home')" style="background:#fff;border-radius:14px;padding:11px 14px;margin-bottom:7px;display:flex;align-items:center;gap:12px;box-shadow:0 4px 10px rgba(11,77,58,0.06);cursor:pointer;">
       <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(160deg,#1C8C6B,#0B4D3A);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0;">${s.name.charAt(0)}</div>
       <div><b style="font-size:13.5px;">${s.name}</b><br><small style="color:#999;font-size:11px;">${s.batch || ''}</small></div>
     </div>`).join('');
@@ -436,7 +436,7 @@ async function buildTopStudentsHtml(students) {
       <div style="font-weight:bold;color:#0B4D3A;font-size:14px;margin-bottom:10px;">${batchIcon} ${batch}</div>`;
     ranked.forEach((s, i) => {
       let genderIcon = s.gender === 'Ladki' ? '👧' : '👦';
-      html += `<div onclick="loadProfile(${s.id})" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f0f0f0;cursor:pointer;">
+      html += `<div onclick="loadProfile(${s.id},'top')" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f0f0f0;cursor:pointer;">
         <span style="font-size:20px;">${medals[i]}</span>
         <span style="font-size:18px;">${genderIcon}</span>
         <div style="flex:1;">
@@ -518,7 +518,7 @@ async function loadTalaba() {
     students.forEach(s => {
       html += `
         <div class="card student-item" data-name="${s.name.toLowerCase()}" style="margin:8px 10px;padding:14px;">
-          <div class="student-card" onclick="loadProfile(${s.id})" style="cursor:pointer;">
+          <div class="student-card" onclick="loadProfile(${s.id},'talaba')" style="cursor:pointer;">
             <div class="student-info">
               <div class="student-avatar">${s.name.charAt(0).toUpperCase()}</div>
               <div>
@@ -712,7 +712,7 @@ async function editFeeDate(studentId, month, year, currentDate) {
   }
 }
 
-async function loadProfile(studentId) {
+async function loadProfile(studentId, returnTo = 'talaba') {
   document.getElementById("app").innerHTML = '<div class="loading">⏳ Loading...</div>';
   let { data: s } = await db.from('students').select('*').eq('id', studentId).single();
   let { data: att } = await db.from('attendance').select('*').eq('student_id', studentId);
@@ -734,6 +734,23 @@ async function loadProfile(studentId) {
     }
   }
   let streakHtml = streak >= 2 ? `<div style="display:inline-block;background:linear-gradient(135deg,#f0b35e,#c97f1f);color:#fff;padding:5px 14px;border-radius:20px;font-size:12px;font-weight:700;margin-top:8px;">🔥 ${streak} din se lagatar haazir!</div>` : '';
+
+  // Best Student of Month check
+  let now = new Date();
+  let firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0,10);
+  let today = now.toISOString().slice(0,10);
+  let { data: allStudents } = await db.from('students').select('id');
+  let { data: monthAtt } = await db.from('attendance').select('*').gte('date', firstDay).lte('date', today).eq('status', 'present');
+  let bestBadge = '';
+  if (monthAtt && allStudents) {
+    let counts = {};
+    monthAtt.forEach(a => { counts[a.student_id] = (counts[a.student_id] || 0) + 1; });
+    let maxCount = Math.max(...Object.values(counts));
+    if (counts[studentId] && counts[studentId] === maxCount && maxCount > 0) {
+      let monthLabel = now.toLocaleDateString('en-GB', { month: 'long' });
+      bestBadge = `<div style="display:inline-block;background:linear-gradient(135deg,#B8862C,#E3C16B);color:#3a2a00;padding:5px 14px;border-radius:20px;font-size:12px;font-weight:700;margin-top:6px;">🏅 ${monthLabel} Ka Best Talib!</div>`;
+    }
+  }
 
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   let feesPaid = fees ? fees.filter(f => f.paid).length : 0;
@@ -772,7 +789,13 @@ async function loadProfile(studentId) {
 
   document.getElementById("app").innerHTML = `
     <div style="padding:10px;">
-      <button class="btn-cancel" onclick="loadTalaba()" style="width:auto;padding:8px 16px;">← Wapas</button>
+      <button class="btn-cancel" onclick="${
+        returnTo === 'haazri' ? `loadBatchHaazri('${s.batch}')` :
+        returnTo === 'top' ? 'loadTopStudents()' :
+        returnTo === 'report' ? 'loadReport()' :
+        returnTo === 'home' ? 'loadHome()' :
+        'loadTalaba()'
+      }" style="width:auto;padding:8px 16px;">← Wapas</button>
     </div>
     <div class="card profile-card" id="profileCard">
       <div style="text-align:center;padding:10px 0;">
@@ -782,6 +805,7 @@ async function loadProfile(studentId) {
         ${s.phone ? `<p style="color:#666;margin:2px 0;">📞 ${s.phone}</p>` : ''}
         <span class="batch-badge" style="font-size:13px;padding:4px 14px;">${s.batch || '-'}</span><br>
         ${streakHtml}
+        ${bestBadge}
       </div>
       <div class="profile-stats">
         <div class="pstat" style="border-color:${color}">
@@ -1950,13 +1974,13 @@ async function loadBatchHaazri(batch) {
     html += `
       <div class="card" id="hcard-${s.id}" style="margin:5px 10px;padding:12px;">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
-          <div class="student-name" onclick="loadProfile(${s.id})" style="cursor:pointer;text-decoration:underline;text-decoration-color:#e7e2d4;">${s.name}</div>
+          <div class="student-name" onclick="loadProfile(${s.id},'haazri')" style="cursor:pointer;text-decoration:underline;text-decoration-color:#e7e2d4;">${s.name}</div>
           <div style="display:flex;gap:6px;align-items:center;">
             <div class="att-buttons">
               <button class="btn-present ${status==='present'?'active-green':''}" onclick="mark(${s.id},'present',this)">✔ Haazir</button>
               <button class="btn-absent ${status==='absent'?'active-red':''}" onclick="mark(${s.id},'absent',this)">✖ Ghaib</button>
             </div>
-            <button onclick="loadProfile(${s.id})" style="background:#e3f2fd;color:#1C6E89;border:1px solid #1C6E89;padding:6px 10px;border-radius:8px;cursor:pointer;font-size:14px;">👤</button>
+            <button onclick="loadProfile(${s.id},'haazri')" style="background:#e3f2fd;color:#1C6E89;border:1px solid #1C6E89;padding:6px 10px;border-radius:8px;cursor:pointer;font-size:14px;">👤</button>
             <button class="btn-delete" onclick="deleteStudentFromHaazri(${s.id},'${s.name}')" style="padding:6px 10px;font-size:14px;">🗑</button>
           </div>
         </div>
@@ -2248,7 +2272,7 @@ async function loadReport() {
     let percent = total > 0 ? Math.round((present/total)*100) : 0;
     let color = percent >= 75 ? '#1C8C6B' : percent >= 50 ? '#C9972C' : '#D9614C';
     html += `
-      <div class="card" onclick="loadProfile(${s.id})" style="cursor:pointer;">
+      <div class="card" onclick="loadProfile(${s.id},'report')" style="cursor:pointer;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <div><b>${s.name}</b><br><small style="color:#666;">${s.batch||''}</small></div>
           <div style="font-size:22px;font-weight:bold;color:${color}">${percent}%</div>
