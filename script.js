@@ -1869,8 +1869,28 @@ function loadHaazri() {
       </div>`;
     return;
   }
+
+  // Check if manual chutti declared today
+  let todayChutti = JSON.parse(localStorage.getItem('manual_chutti') || '{}');
+  let chuttiBatchesHtml = '';
+  if (todayChutti.date === today) {
+    let batches = todayChutti.batches || [];
+    if (batches.includes('all')) {
+      chuttiBatchesHtml = `<div style="margin:8px 10px;background:#fff8e1;border:2px solid #ffc107;border-radius:12px;padding:12px;text-align:center;">
+        <b style="color:#a85a00;">🌧 Aaj Poori Maktab Ki Chutti Hai</b>
+        <button onclick="cancelManualChutti()" style="display:block;width:100%;margin-top:8px;background:none;border:1px solid #D9614C;color:#D9614C;padding:6px;border-radius:8px;font-size:11px;">❌ Chutti Wapas Lo</button>
+      </div>`;
+    } else if (batches.length > 0) {
+      chuttiBatchesHtml = `<div style="margin:8px 10px;background:#fff8e1;border:2px solid #ffc107;border-radius:12px;padding:12px;">
+        <b style="color:#a85a00;">🌧 Aaj In Batches Ki Chutti: ${batches.join(', ')}</b>
+        <button onclick="cancelManualChutti()" style="display:block;width:100%;margin-top:8px;background:none;border:1px solid #D9614C;color:#D9614C;padding:6px;border-radius:8px;font-size:11px;">❌ Chutti Wapas Lo</button>
+      </div>`;
+    }
+  }
+
   document.getElementById("app").innerHTML = `
     <div class="date-banner">📅 ${today} - Batch Select Karo</div>
+    ${chuttiBatchesHtml}
     <div style="padding:10px;">
       <div class="tile tile-orange" style="margin:8px 0;" onclick="loadBatchHaazri('Pehli (7-8 AM)')">
         <div class="tile-icon">🌅</div>
@@ -1884,7 +1904,48 @@ function loadHaazri() {
         <div class="tile-icon">🌙</div>
         <div class="tile-label" style="font-size:14px;">تیسری بیچ (مغرب-عشاء)</div>
       </div>
+      <div style="margin-top:16px;padding:12px 4px;">
+        <div style="font-size:11px;color:#888;text-align:center;margin-bottom:8px;">🌧 Aaj Achanak Chutti Deni Hai?</div>
+        <div style="display:flex;gap:8px;">
+          <button onclick="declareManualChutti('all')" style="flex:1;background:#f0b35e;color:#fff;border:none;padding:10px;border-radius:10px;font-weight:700;font-size:12px;">🏫 Poori Maktab</button>
+          <button onclick="showBatchChuttiPicker()" style="flex:1;background:#1C6E89;color:#fff;border:none;padding:10px;border-radius:10px;font-weight:700;font-size:12px;">🎯 Koi Batch</button>
+        </div>
+      </div>
+      <div id="batchChuttiPicker" style="display:none;margin-top:8px;background:#fff;border:1px solid #eee;border-radius:12px;padding:12px;">
+        <p style="font-size:12px;color:#555;margin-bottom:8px;">Kaun si batch ki chutti?</p>
+        <button onclick="declareManualChutti('Pehli (7-8 AM)')" style="display:block;width:100%;margin-bottom:6px;background:#e9f5ee;color:#0B4D3A;border:1px solid #1C8C6B;padding:9px;border-radius:8px;font-weight:600;">🌅 Pehli (7-8 AM)</button>
+        <button onclick="declareManualChutti('Doosri (2-3 PM)')" style="display:block;width:100%;margin-bottom:6px;background:#e3f2fd;color:#1C6E89;border:1px solid #1C6E89;padding:9px;border-radius:8px;font-weight:600;">☀️ Doosri (2-3 PM)</button>
+        <button onclick="declareManualChutti('Teesri (Maghrib-Isha)')" style="display:block;width:100%;background:#ede3f0;color:#7A4B8C;border:1px solid #7A4B8C;padding:9px;border-radius:8px;font-weight:600;">🌙 Teesri (Maghrib-Isha)</button>
+      </div>
     </div>`;
+}
+
+function showBatchChuttiPicker() {
+  let picker = document.getElementById('batchChuttiPicker');
+  if (picker) picker.style.display = picker.style.display === 'none' ? 'block' : 'none';
+}
+
+function declareManualChutti(batch) {
+  let today = new Date().toISOString().slice(0,10);
+  let existing = JSON.parse(localStorage.getItem('manual_chutti') || '{}');
+  let batches = (existing.date === today) ? (existing.batches || []) : [];
+  if (!batches.includes(batch)) batches.push(batch);
+  localStorage.setItem('manual_chutti', JSON.stringify({ date: today, batches }));
+  showToast(batch === 'all' ? "🌧 Poori maktab ki chutti declare ho gayi" : `🌧 ${batch} ki chutti declare ho gayi`);
+  loadHaazri();
+}
+
+function cancelManualChutti() {
+  localStorage.removeItem('manual_chutti');
+  showToast("✅ Chutti wapas li gayi");
+  loadHaazri();
+}
+
+function isBatchChutti(batch) {
+  let today = new Date().toISOString().slice(0,10);
+  let data = JSON.parse(localStorage.getItem('manual_chutti') || '{}');
+  if (data.date !== today) return false;
+  return data.batches && (data.batches.includes('all') || data.batches.includes(batch));
 }
 
 async function markAllPresent(batch) {
