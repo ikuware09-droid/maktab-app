@@ -2350,29 +2350,93 @@ async function loadDateHaazri() {
   let today = new Date().toISOString().slice(0, 10);
   document.getElementById("app").innerHTML = `
     <div style="padding:10px;">
-      <div class="date-banner" style="margin:0 0 10px;">📅 Kisi Bhi Din Ki Haazri Dekho</div>
+      <div class="date-banner" style="margin:0 0 10px;">📅 Pichle Din Ki Haazri</div>
       <input type="date" id="dateInput" class="input-field" value="${today}" max="${today}">
-      <button class="btn-primary" style="margin-top:8px;" onclick="showDateHaazri()">🔍 Haazri Dekho</button>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button class="btn-primary" style="flex:2;" onclick="showDateHaazri()">🔍 Haazri Dekho</button>
+        <button onclick="showPastDateOptions()" style="flex:1;background:#f0b35e;color:#fff;border:none;padding:10px;border-radius:12px;font-weight:700;font-size:12px;">✏️ Edit</button>
+      </div>
+      <div id="pastDateOptions" style="display:none;margin-top:10px;background:#fff8e1;border:1px solid #ffc107;border-radius:12px;padding:12px;">
+        <p style="font-size:12px;color:#555;margin-bottom:8px;">Is din ke liye kya karna hai?</p>
+        <button onclick="loadPastBatchHaazri()" style="display:block;width:100%;margin-bottom:6px;background:#1C8C6B;color:#fff;border:none;padding:10px;border-radius:9px;font-weight:700;">📋 Is Din Ki Haazri Lo / Edit Karo</button>
+        <button onclick="declarePastChutti()" style="display:block;width:100%;background:#D9614C;color:#fff;border:none;padding:10px;border-radius:9px;font-weight:700;">🌧 Is Din Ki Chutti Declare Karo</button>
+      </div>
     </div>
     <div id="dateHaazriResult"></div>`;
+}
+
+function showPastDateOptions() {
+  let box = document.getElementById('pastDateOptions');
+  if (box) box.style.display = box.style.display === 'none' ? 'block' : 'none';
+}
+
+async function declarePastChutti() {
+  let date = document.getElementById('dateInput').value;
+  if (!date) { showToast("⚠ Date select karo"); return; }
+  if (!confirm(`${date} ko chutti declare karna chahte ho? Us din ki haazri delete ho jayegi.`)) return;
+  await db.from('attendance').delete().eq('date', date);
+  showToast("✅ " + date + " ki chutti declare ho gayi");
+  showDateHaazri();
+}
+
+async function loadPastBatchHaazri() {
+  let date = document.getElementById('dateInput').value;
+  if (!date) { showToast("⚠ Date select karo"); return; }
+  document.getElementById("app").innerHTML = '<div class="loading">⏳ Loading...</div>';
+  let { data: students } = await db.from('students').select('*').order('batch').order('name');
+  let { data: att } = await db.from('attendance').select('*').eq('date', date);
+  let attMap = {};
+  if (att) att.forEach(a => attMap[a.student_id] = a.status);
+
+  let html = `
+    <div style="padding:10px;">
+      <button class="btn-cancel" onclick="loadDateHaazri()" style="width:auto;padding:8px 16px;">← Wapas</button>
+    </div>
+    <div class="date-banner">📅 ${date} — Haazri Lo / Edit Karo</div>`;
+
+  let batches = [...new Set(students.map(s => s.batch).filter(Boolean))];
+  batches.forEach(batch => {
+    html += `<div class="batch-header">${batch}</div>`;
+    students.filter(s => s.batch === batch).forEach(s => {
+      let status = attMap[s.id] || '';
+      html += `<div class="card" id="pc-${s.id}" style="margin:5px 10px;padding:11px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-weight:500;font-size:14px;">${s.name}</span>
+          <div style="display:flex;gap:6px;">
+            <button class="btn-present ${status==='present'?'active-green':''}" onclick="markPast('${date}',${s.id},'present',this)">✔ Haazir</button>
+            <button class="btn-absent ${status==='absent'?'active-red':''}" onclick="markPast('${date}',${s.id},'absent',this)">✖ Ghaib</button>
+          </div>
+        </div>
+      </div>`;
+    });
+  });
+  document.getElementById("app").innerHTML = html;
+}
+
+async function markPast(date, studentId, status, btn) {
+  let { data: existing } = await db.from('attendance').select('*').eq('student_id', studentId).eq('date', date);
+  if (existing && existing.length > 0) {
+    await db.from('attendance').update({ status }).eq('id', existing[0].id);
+  } else {
+    await db.from('attendance').insert([{ student_id: studentId, date, status }]);
+  }
+  let card = btn.closest('.card');
+  card.querySelectorAll('.btn-present,.btn-absent').forEach(b => b.classList.remove('active-green','active-red'));
+  btn.classList.add(status === 'present' ? 'active-green' : 'active-red');
+  showToast(status === 'present' ? "✅ Haazir" : "❌ Ghaib");
 }
 
 async function showDateHaazri() {
   let date = document.getElementById('dateInput').value;
   if (!date) { showToast("⚠ Date select karo!"); return; }
-  
   document.getElementById("dateHaazriResult").innerHTML = '<div class="loading">⏳ Loading...</div>';
-  
   let { data: students } = await db.from('students').select('*').order('batch').order('name');
   let { data: att } = await db.from('attendance').select('*').eq('date', date);
-  
   let attMap = {};
   if (att) att.forEach(a => attMap[a.student_id] = a.status);
-  
   let total = students ? students.length : 0;
   let present = att ? att.filter(a => a.status === 'present').length : 0;
   let absent = total - present;
-  
   let html = `
     <div class="card" style="margin:8px 10px;background:#0B4D3A;color:white;text-align:center;">
       <b style="font-size:15px;">📅 ${date}</b><br>
@@ -2380,7 +2444,6 @@ async function showDateHaazri() {
       <span style="color:#D9614C;">❌ Ghaib: ${absent}</span> &nbsp;
       <span style="color:#B8862C;">👦 Kul: ${total}</span>
     </div>`;
-  
   let batches = [...new Set(students.map(s => s.batch).filter(Boolean))];
   batches.forEach(batch => {
     html += `<div class="batch-header">${batch}</div>`;
@@ -2389,14 +2452,12 @@ async function showDateHaazri() {
       let icon = status === 'present' ? '✅' : status === 'absent' ? '❌' : '➖';
       let color = status === 'present' ? '#e9f7ef' : status === 'absent' ? '#fdedec' : '#f9f9f9';
       let text = status === 'present' ? 'Haazir' : status === 'absent' ? 'Ghaib' : 'Recorded nahi';
-      html += `
-        <div class="card" style="margin:5px 10px;padding:12px;background:${color};display:flex;justify-content:space-between;align-items:center;">
+      html += `<div class="card" style="margin:5px 10px;padding:12px;background:${color};display:flex;justify-content:space-between;align-items:center;">
           <span style="font-weight:500;">${s.name}</span>
           <span style="font-weight:bold;">${icon} ${text}</span>
         </div>`;
     });
   });
-  
   document.getElementById("dateHaazriResult").innerHTML = html;
 }
 
