@@ -1580,34 +1580,42 @@ const prayers = [
   { key: 'isha', label: 'عشاء' },
 ];
 
-async function loadImamLog() {
+async function loadImamLog(selectedDate) {
   document.getElementById("app").innerHTML = '<div class="loading">⏳ Loading...</div>';
   let today = new Date().toISOString().slice(0, 10);
+  if (!selectedDate) selectedDate = today;
   let { data: logs } = await db.from('imam_log').select('*').order('date', { ascending: false }).limit(30);
-  let todayLog = logs ? logs.find(l => l.date === today) : null;
-  let note = todayLog ? (todayLog.note || '') : '';
+  let selectedLog = logs ? logs.find(l => l.date === selectedDate) : null;
+  let note = selectedLog ? (selectedLog.note || '') : '';
 
   let prayerRows = prayers.map(p => {
-    let azaan = todayLog ? todayLog[p.key + '_azaan'] : false;
-    let namaz = todayLog ? todayLog[p.key + '_namaz'] : false;
+    let azaan = selectedLog ? selectedLog[p.key + '_azaan'] : false;
+    let namaz = selectedLog ? selectedLog[p.key + '_namaz'] : false;
     return `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px dotted #eee;">
       <b class="urdu" style="width:50px;font-size:14px;">${p.label}</b>
-      <button onclick="toggleImamField('${p.key}_azaan')" style="flex:1;padding:9px;border-radius:9px;border:2px solid ${azaan?'#1C8C6B':'#ccc'};background:${azaan?'#e9f5ee':'#f5f5f0'};color:${azaan?'#0B4D3A':'#999'};font-weight:600;font-size:11.5px;">📢 Azaan ${azaan?'✅':'❌'}</button>
-      <button onclick="toggleImamField('${p.key}_namaz')" style="flex:1;padding:9px;border-radius:9px;border:2px solid ${namaz?'#1C8C6B':'#ccc'};background:${namaz?'#e9f5ee':'#f5f5f0'};color:${namaz?'#0B4D3A':'#999'};font-weight:600;font-size:11.5px;">🕌 Namaz ${namaz?'✅':'❌'}</button>
+      <button onclick="toggleImamFieldDate('${p.key}_azaan','${selectedDate}')" style="flex:1;padding:9px;border-radius:9px;border:2px solid ${azaan?'#1C8C6B':'#ccc'};background:${azaan?'#e9f5ee':'#f5f5f0'};color:${azaan?'#0B4D3A':'#999'};font-weight:600;font-size:11.5px;">📢 Azaan ${azaan?'✅':'❌'}</button>
+      <button onclick="toggleImamFieldDate('${p.key}_namaz','${selectedDate}')" style="flex:1;padding:9px;border-radius:9px;border:2px solid ${namaz?'#1C8C6B':'#ccc'};background:${namaz?'#e9f5ee':'#f5f5f0'};color:${namaz?'#0B4D3A':'#999'};font-weight:600;font-size:11.5px;">🕌 Namaz ${namaz?'✅':'❌'}</button>
     </div>`;
   }).join('');
+
+  let isPast = selectedDate !== today;
 
   let html = `
     <div style="padding:10px;">
       <button class="btn-cancel" onclick="loadSettings()" style="width:auto;padding:8px 16px;">← Wapas</button>
     </div>
-    <div class="date-banner">🕌 Meri Hazri — ${today}</div>
+    <div class="date-banner">🕌 Meri Hazri${isPast ? ' — پرانی تاریخ' : ''}</div>
+    <div style="margin:10px 18px;background:#fff;border-radius:16px;padding:14px;box-shadow:0 4px 12px rgba(11,77,58,0.08);">
+      <div style="font-size:12px;color:#0B4D3A;font-weight:700;margin-bottom:8px;">📅 Koi bhi din select karo:</div>
+      <input type="date" id="imamDatePicker" class="input-field" value="${selectedDate}" max="${today}" style="direction:ltr;font-size:15px;" onchange="loadImamLog(this.value)">
+      ${isPast ? `<div style="background:#fff8e1;border:1px solid #ffc107;border-radius:8px;padding:6px 10px;font-size:11.5px;color:#a85a00;margin-top:6px;">📋 ${selectedDate} ka record dikha raha hai</div>` : ''}
+    </div>
     <div class="card">
-      <h4 style="color:#0B4D3A;margin-bottom:8px;">Aaj Ka Record (har waqt alag)</h4>
+      <h4 style="color:#0B4D3A;margin-bottom:8px;">${isPast ? selectedDate + ' Ka Record' : 'Aaj Ka Record'} (har waqt alag)</h4>
       ${prayerRows}
       <label style="font-size:11px;color:#888;margin-top:10px;display:block;">Note (agar chutti ki wajah likhni ho)</label>
-      <textarea id="imamNote" class="input-field" style="min-height:60px;" placeholder="Jaise: Tabiyat theek nahi thi...">${note}</textarea>
-      <button class="btn-primary" onclick="saveImamNote()">💾 Note Save Karo</button>
+      <textarea id="imamNote" class="input-field" style="min-height:60px;" placeholder="Jaise: Barish thi, network nahi tha...">${note}</textarea>
+      <button class="btn-primary" onclick="saveImamNoteDate('${selectedDate}')">💾 Save Karo</button>
     </div>
     <div class="card">
       <h4 style="color:#0B4D3A;margin-bottom:10px;">📜 Pichle Din (30 din)</h4>`;
@@ -1622,9 +1630,10 @@ async function loadImamLog() {
         if (l[p.key+'_namaz']) totalDone++; else totalMissed.push(p.label+' Namaz');
       });
       let color = totalDone === 10 ? '#1C8C6B' : totalDone === 0 ? '#D9614C' : '#B8862C';
-      html += `<div style="padding:8px 0;border-bottom:1px dotted #eee;">
+      let isSelected = l.date === selectedDate;
+      html += `<div onclick="loadImamLog('${l.date}')" style="padding:8px 0;border-bottom:1px dotted #eee;cursor:pointer;background:${isSelected?'#e9f5ee':'transparent'};border-radius:6px;padding-inline:6px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
-          <span style="font-size:12.5px;direction:ltr;">${l.date}</span>
+          <span style="font-size:12.5px;direction:ltr;">${l.date}${isSelected?' ◀':''}</span>
           <span style="color:${color};font-weight:700;font-size:11.5px;">${totalDone}/10</span>
         </div>
         ${totalDone < 10 ? `<div class="urdu" style="font-size:10.5px;color:#D9614C;margin-top:3px;">Miss: ${totalMissed.join('، ')}</div>` : ''}
@@ -1634,6 +1643,34 @@ async function loadImamLog() {
   }
   html += `</div>`;
   document.getElementById("app").innerHTML = html;
+}
+
+async function toggleImamFieldDate(field, date) {
+  let { data: existing } = await db.from('imam_log').select('*').eq('date', date);
+  let newVal;
+  if (existing && existing.length > 0) {
+    newVal = !existing[0][field];
+    await db.from('imam_log').update({ [field]: newVal }).eq('id', existing[0].id);
+  } else {
+    newVal = true;
+    let insertObj = { date };
+    insertObj[field] = true;
+    await db.from('imam_log').insert([insertObj]);
+  }
+  showToast(newVal ? "✅ Mark ho gaya" : "Wapas unmark kar diya");
+  loadImamLog(date);
+}
+
+async function saveImamNoteDate(date) {
+  let note = document.getElementById('imamNote').value.trim();
+  let { data: existing } = await db.from('imam_log').select('*').eq('date', date);
+  if (existing && existing.length > 0) {
+    await db.from('imam_log').update({ note }).eq('id', existing[0].id);
+  } else {
+    await db.from('imam_log').insert([{ date, note }]);
+  }
+  showToast("✅ Note save ho gaya");
+  loadImamLog(date);
 }
 
 async function toggleImamField(field) {
