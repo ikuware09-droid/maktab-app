@@ -885,6 +885,8 @@ async function shareReportCard(studentId) {
   let year = new Date().getFullYear();
   let now = new Date();
   let monthLabel = now.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  let isCurrentMonth = true; // Always current month in this report
+  let reportLabel = monthLabel + ' — ابھی تک';
   let firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0,10);
   let today = now.toISOString().slice(0,10);
   let { data: att } = await db.from('attendance').select('*').eq('student_id', studentId).gte('date', firstDay).lte('date', today);
@@ -911,7 +913,7 @@ async function shareReportCard(studentId) {
         <div style="width:52px;height:52px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#E3C16B,#B8862C);display:flex;align-items:center;justify-content:center;font-size:22px;margin:0 auto 10px;">🕌</div>
         <div style="font-size:15px;font-weight:700;">مکتب دار الھدیٰ ناگوٹھانہ</div>
         <div style="font-size:10px;opacity:0.8;margin-top:2px;letter-spacing:0.5px;">NAGOTHANE · MAHARASHTRA</div>
-        <div style="display:inline-block;background:rgba(255,255,255,0.15);border:1px solid rgba(227,193,107,0.6);padding:4px 14px;border-radius:20px;font-size:10px;margin-top:10px;">📋 ماہانہ رپورٹ — ${monthLabel}</div>
+        <div style="display:inline-block;background:rgba(255,255,255,0.15);border:1px solid rgba(227,193,107,0.6);padding:4px 14px;border-radius:20px;font-size:10px;margin-top:10px;">📋 ماہانہ رپورٹ — ${reportLabel}</div>
       </div>
       <div style="text-align:center;padding:20px 16px 10px;">
         <div style="width:58px;height:58px;border-radius:50%;background:linear-gradient(160deg,#1C8C6B,#0B4D3A);color:#fff;font-size:22px;font-weight:700;display:flex;align-items:center;justify-content:center;margin:0 auto 10px;border:3px solid #e9f5ee;">${initial}</div>
